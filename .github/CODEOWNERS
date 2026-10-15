@@ -1,0 +1,7 @@
+# Owners are requested automatically as reviewers on PRs touching these paths.
+# Replace or add teammates' GitHub usernames once they are collaborators on the repo.
+
+*           @DevWilhelm
+/frontend/  @DevWilhelm
+/backend/   @DevWilhelm
+/docs/      @DevWilhelm
