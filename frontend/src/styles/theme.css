@@ -1,0 +1,72 @@
+:root {
+  /* Base */
+  --sidebar: #0F2D5C;
+  --sidebar-text: #FFFFFF;
+  --sidebar-selected: #1BAE9E;
+
+  --topbar-bg: #FFFFFF;
+  --border: #E2E8F0;
+  --background: #F8FAFC;
+  --surface: #FFFFFF;
+
+  --table-header-bg: #EEF2F7;
+  --table-header-text: #475569;
+
+  --btn-primary: #0E7C70;
+  --btn-primary-hover: #0B6A60;
+  --btn-primary-text: #FFFFFF;
+
+  --btn-secondary-bg: #FFFFFF;
+  --btn-secondary-border: #E2E8F0;
+  --btn-secondary-text: #0F172A;
+
+  --link: #0F4C8A;
+
+  --tag-bg: #E3F5F3;
+  --tag-text: #0E7C70;
+  --tag-tier1-bg: #0E7C70;
+  --tag-tier1-text: #FFFFFF;
+
+  --text: #0F172A;
+  --text-secondary: #475569;
+
+  /* Status (text / background) */
+  --status-overdue-text: #B91C1C;
+  --status-overdue-bg: #FEE2E2;
+
+  --status-warning-text: #B45309;
+  --status-warning-bg: #FEF3C7;
+  --warning: #B45309;
+  --warning-bg: #FEF3C7;
+
+  --status-info-text: #0F4C8A;
+  --status-info-bg: #E0ECF8;
+
+  --status-success-text: #15803D;
+  --status-success-bg: #DCFCE7;
+
+  /* Relationship Badges */
+  --relationship-hot-text: #B45309;
+  --relationship-hot-bg: #FEF3C7;
+  --relationship-warm-text: #0F4C8A;
+  --relationship-warm-bg: #E0ECF8;
+  --relationship-cold-text: #475569;
+  --relationship-cold-bg: #EEF2F7;
+
+  /* Business lines (charts, dots, icons only - NEVER for text) */
+  --business-healthcare: #1BAE9E;
+  --business-financial: #0F4C8A;
+  --business-networking: #F36F21;
+
+  /* Charts */
+  --chart-funnel: #0F4C8A;
+  --chart-funnel-meetings: #1BAE9E;
+  --chart-tier-1: #0E7C70;
+  --chart-tier-2: #0F4C8A;
+  --chart-tier-3: #0F2D5C;
+  --chart-dealside-buy: #0F4C8A;
+  --chart-dealside-sell: #1BAE9E;
+  --chart-temp-hot: #B45309;
+  --chart-temp-warm: #0F4C8A;
+  --chart-temp-cold: #475569;
+}
