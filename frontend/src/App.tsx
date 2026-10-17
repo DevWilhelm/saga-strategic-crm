@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { DashboardLayout } from './components/layout/DashboardLayout';
+import { AccountListPage } from './features/accounts/pages/AccountListPage';
+import { AccountDetailPage } from './features/accounts/pages/AccountDetailPage';
+import { AccountFormPage } from './features/accounts/pages/AccountFormPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -31,15 +34,11 @@ export const App: React.FC = () => {
                   />
                 }
               />
-              <Route
-                path="/accounts"
-                element={
-                  <PlaceholderPage
-                    title="Accounts"
-                    description="Target companies, portfolio registries, and corporate profiles."
-                  />
-                }
-              />
+              {/* Accounts Module Routes */}
+              <Route path="/accounts" element={<AccountListPage />} />
+              <Route path="/accounts/new" element={<AccountFormPage />} />
+              <Route path="/accounts/:id" element={<AccountDetailPage />} />
+              <Route path="/accounts/:id/edit" element={<AccountFormPage />} />
               <Route
                 path="/contacts"
                 element={

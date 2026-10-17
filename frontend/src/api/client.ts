@@ -13,8 +13,16 @@ export const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Standard error formatting
-    const message = error.response?.data?.message || error.message || 'Request failed';
-    return Promise.reject(new Error(message));
+    const data = error.response?.data;
+    const message = data?.message || error.message || 'Request failed';
+    const enhancedError = new Error(message) as Error & {
+      response?: typeof error.response;
+      errors?: Array<{ field: string; message: string }>;
+    };
+    enhancedError.response = error.response;
+    if (data?.errors) {
+      enhancedError.errors = data.errors;
+    }
+    return Promise.reject(enhancedError);
   }
 );

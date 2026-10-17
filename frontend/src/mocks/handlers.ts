@@ -1,5 +1,6 @@
 import { http, HttpResponse, delay } from 'msw';
 import { INITIAL_ACCOUNTS, INITIAL_CONTACTS } from './data';
+import { accountHandlers } from './handlers/accounts';
 import type {
   Account,
   Contact,
@@ -15,6 +16,7 @@ let accounts: Account[] = [...INITIAL_ACCOUNTS];
 let contacts: Contact[] = [...INITIAL_CONTACTS];
 
 export const handlers = [
+  ...accountHandlers,
   // --- ACCOUNTS ENDPOINTS (/api/v1/accounts) ---
 
   // GET /api/v1/accounts (paginated list with search)
