@@ -47,7 +47,7 @@ class AuthControllerIntegrationTests {
 
     @Test
     @Order(1)
-    void shouldLoginAdminUser() throws Exception {
+    void shouldLoginAdminUserByEmail() throws Exception {
         LoginRequest request = new LoginRequest("admin@test.com", "Test@123");
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
@@ -66,6 +66,20 @@ class AuthControllerIntegrationTests {
 
     @Test
     @Order(2)
+    void shouldLoginAdminUserByName() throws Exception {
+        // identifier = name (no '@'), should resolve to the same admin account
+        LoginRequest request = new LoginRequest("Administrator", "Test@123");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.user.name").value("Administrator"));
+    }
+
+    @Test
+    @Order(3)
     void shouldGetCurrentUser() throws Exception {
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + accessToken))
@@ -75,14 +89,14 @@ class AuthControllerIntegrationTests {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void shouldFailWithoutToken() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void shouldFailLoginWithWrongPassword() throws Exception {
         LoginRequest request = new LoginRequest("admin@test.com", "WrongPassword");
 
@@ -93,7 +107,7 @@ class AuthControllerIntegrationTests {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void shouldRejectPublicRegister() throws Exception {
         // Public registration endpoint is removed; unauthenticated POST should be denied (401/403/404)
         mockMvc.perform(post("/api/auth/register")

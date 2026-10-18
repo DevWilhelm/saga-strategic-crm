@@ -14,11 +14,18 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
+    /**
+     * Accepts either an email address or a user name as the identifier.
+     * Email is tried first (detected by the presence of '@'), then name.
+     */
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        return (identifier.contains("@")
+                ? userRepository.findByEmail(identifier)
+                : userRepository.findByName(identifier).or(() -> userRepository.findByEmail(identifier)))
                 .filter(user -> user.getStatus() == UserStatus.ACTIVE)
                 .map(UserPrincipal::fromUser)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "No active user found for identifier: " + identifier));
     }
 }
