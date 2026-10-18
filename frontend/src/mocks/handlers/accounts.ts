@@ -181,6 +181,42 @@ export const accountHandlers = [
   // Note: Placed before /api/accounts/:id to prevent route shadowing
   http.get('*/api/accounts/lookups', async () => {
     await delay(100);
+    const currentUser = mockStore.getCurrentMockUser();
+    let ownersList: AccountLookups['owners'];
+
+    if (currentUser.role === 'ADMIN') {
+      // ADMIN: returns all active owners WITH username (for template generation and owner reassignment)
+      ownersList = mockStore.users
+        .filter((u) => u.status === 'ACTIVE')
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          code: u.code,
+          username: u.username,
+          photoUrl: u.photoUrl ?? null,
+        }));
+    } else if (currentUser.role === 'MEMBER') {
+      // MEMBER: returns ONLY the member themselves, without username (privacy rule)
+      ownersList = [
+        {
+          id: currentUser.id,
+          name: currentUser.name,
+          code: currentUser.code,
+          photoUrl: currentUser.photoUrl ?? null,
+        },
+      ];
+    } else {
+      // VIEWER / OTHER: returns all active owners WITHOUT username (id, name, code, photoUrl only)
+      ownersList = mockStore.users
+        .filter((u) => u.status === 'ACTIVE')
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          code: u.code,
+          photoUrl: u.photoUrl ?? null,
+        }));
+    }
+
     const lookups: AccountLookups = {
       businessLines: mockStore.accounts.length > 0
         ? ['Healthcare', 'Financial Advisory', 'Networking & Partnerships']
@@ -188,7 +224,7 @@ export const accountHandlers = [
       categories: mockStore.categories,
       subCategories: mockStore.subCategories,
       services: mockStore.services,
-      owners: mockStore.users,
+      owners: ownersList,
       tiers: ['TIER_1', 'TIER_2', 'TIER_3'],
       dealSides: ['BUY_SIDE', 'SELL_SIDE'],
       countries: mockStore.countries,

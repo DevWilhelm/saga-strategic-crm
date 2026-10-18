@@ -257,9 +257,8 @@ Retrieves all reference metadata needed for populating search filters and form d
     { "id": "srv-market-entry", "name": "Cross-Border Market Entry" }
   ],
   "owners": [
-    { "id": "usr-ploy", "name": "Ploy S.", "code": "PS" },
-    { "id": "usr-1", "name": "Sarah Jenkins", "code: "SJ" },
-    { "id": "usr-2", "name": "Michael Chang", "code": "MC" }
+    { "id": "usr-ploy", "name": "Ploy S.", "code": "PS", "username": "ploy_admin", "photoUrl": null },
+    { "id": "usr-1", "name": "Sarah Jenkins", "code": "SJ", "username": "sarah_j", "photoUrl": null }
   ],
   "tiers": ["TIER_1", "TIER_2", "TIER_3"],
   "dealSides": ["BUY_SIDE", "SELL_SIDE"],
@@ -270,6 +269,12 @@ Retrieves all reference metadata needed for populating search filters and form d
   "statuses": ["ACTIVE", "INACTIVE"]
 }
 ```
+
+* **Role-Based Owner Visibility Rules**:
+  * **ADMIN**: The `owners` array returns all active users, including their `username` (needed for Excel import template generation and account owner reassignment).
+  * **MEMBER**: The `owners` array returns **only the authenticated member themselves** (without `username`), ensuring colleagues' user data is not leaked.
+  * **VIEWER**: The `owners` array returns active users with `id`, `name`, `code`, and `photoUrl` only (never `username`, `email`, or `phone`).
+  * **Dropdowns & Filters**: The standalone `/api/users/options` endpoint strictly returns `{ id, name, code, photoUrl }` for all roles.
 
 ---
 

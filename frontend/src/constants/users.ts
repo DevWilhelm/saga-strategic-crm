@@ -12,6 +12,9 @@ export const PERMISSION_ACTIONS = [
   'account.edit',
   'account.reassignOwner',
   'contacts.view',
+  'account.import',
+  'account.template',
+  'account.export',
   'lookup.manage',
   'user.manage',
 ] as const;
@@ -57,6 +60,24 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     description: 'Change the assigned account owner to another team member.',
   },
   {
+    action: 'account.import',
+    category: 'Accounts',
+    label: 'Import Accounts',
+    description: 'Bulk upload accounts via spreadsheet import wizard.',
+  },
+  {
+    action: 'account.template',
+    category: 'Accounts',
+    label: 'Download Account Template',
+    description: 'Download verified Excel accounts import template with live lookups.',
+  },
+  {
+    action: 'account.export',
+    category: 'Accounts',
+    label: 'Export Accounts',
+    description: 'Export account records to Excel or CSV formats with security safeguards.',
+  },
+  {
     action: 'contacts.view',
     category: 'Contacts',
     label: 'View Contacts',
@@ -83,6 +104,9 @@ export const ROLE_PRESET_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'account.create',
     'account.edit',
     'account.reassignOwner',
+    'account.import',
+    'account.template',
+    'account.export',
     'contacts.view',
     'lookup.manage',
     'user.manage',
@@ -92,9 +116,13 @@ export const ROLE_PRESET_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'accounts.view',
     'account.create',
     'account.edit',
+    'account.import',
+    'account.template',
+    'account.export',
     'contacts.view',
   ],
   VIEWER: [
+    // VIEWER sees none of the three import/template/export buttons (comment: export policy TBD with the team)
     'dashboard.view',
     'accounts.view',
     'contacts.view',
