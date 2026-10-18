@@ -14,9 +14,11 @@ export interface User {
   username: string;
   role: UserRole;
   status: UserStatus;
-  email?: string | null;
+  email: string;
   phone?: string | null;
   photoUrl?: string | null;
+  managerId: string | null;
+  managerName?: string | null;
   permissions: PermissionAction[];
   createdDate: string; // YYYY-MM-DD
   updatedDate: string; // YYYY-MM-DD
@@ -41,9 +43,11 @@ export interface CurrentUser {
   username: string;
   role: UserRole;
   status: UserStatus;
-  email?: string | null;
+  email: string;
   phone?: string | null;
   photoUrl?: string | null;
+  managerId: string | null;
+  managerName?: string | null;
   permissions: PermissionAction[];
 }
 
@@ -51,6 +55,7 @@ export interface UserFilters {
   q?: string;
   role?: string;
   status?: string;
+  managerId?: string;
   page?: number;
   size?: number;
   sort?: string;
@@ -72,8 +77,9 @@ export interface CreateUserDTO {
   password: string;
   role: UserRole;
   status: UserStatus;
-  email?: string | null;
+  email: string;
   phone?: string | null;
+  managerId: string | null;
   permissions: PermissionAction[];
 }
 
@@ -83,8 +89,9 @@ export interface UpdateUserDTO {
   username: string;
   role: UserRole;
   status: UserStatus;
-  email?: string | null;
+  email: string;
   phone?: string | null;
+  managerId?: string | null;
 }
 
 /**
@@ -93,7 +100,7 @@ export interface UpdateUserDTO {
  */
 export interface UpdateMyProfileDTO {
   name: string;
-  email?: string | null;
+  email: string;
   phone?: string | null;
 }
 

@@ -28,9 +28,9 @@ export function can(
     return false;
   }
 
-  // Specific resource rule for editing accounts: Members can only edit accounts they own
+  // Specific resource rule for editing accounts: Super Admins and Admins can edit any; Members can only edit accounts they own
   if (action === 'account.edit' && resource && resource.ownerId) {
-    if (user.role !== 'ADMIN' && resource.ownerId !== user.id) {
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && resource.ownerId !== user.id) {
       return false;
     }
   }

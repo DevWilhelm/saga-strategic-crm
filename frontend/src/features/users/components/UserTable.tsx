@@ -19,6 +19,7 @@ import { UserRoleBadge } from './UserRoleBadge';
 import { UserStatusBadge } from './UserStatusBadge';
 import { useToggleUserStatus } from '../hooks/useUsers';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { useAuth } from '../../../context/AuthContext';
 
 interface UserTableProps {
   users: UserListItem[];
@@ -88,10 +89,22 @@ export const UserTable: React.FC<UserTableProps> = ({
   const startItem = totalElements === 0 ? 0 : page * size + 1;
   const endItem = Math.min((page + 1) * size, totalElements);
 
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const [confirmingUser, setConfirmingUser] = useState<UserListItem | null>(null);
 
-  const handleToggleStatus = (user: UserListItem) => {
-    setConfirmingUser(user);
+  const handleToggleStatus = (targetUser: UserListItem) => {
+    if (targetUser.role === 'SUPER_ADMIN') {
+      onConflict('The Super Admin account cannot be deactivated or changed.');
+      return;
+    }
+    if (currentUser?.id === targetUser.id) {
+      onConflict('You cannot deactivate your own active account.');
+      return;
+    }
+    setConfirmingUser(targetUser);
   };
 
   const handleConfirmedToggleStatus = async () => {
@@ -163,6 +176,11 @@ export const UserTable: React.FC<UserTableProps> = ({
 
               {/* Role - NON-SORTABLE */}
               <th scope="col" className="py-3 px-3 text-center">Role</th>
+
+              {/* Manager / Admin - SUPER_ADMIN only */}
+              {isSuperAdmin && (
+                <th scope="col" className="py-3 px-3 text-center">Manager / Admin</th>
+              )}
 
               {/* Status - NON-SORTABLE */}
               <th scope="col" className="py-3 px-3 text-center">Status</th>
@@ -244,6 +262,25 @@ export const UserTable: React.FC<UserTableProps> = ({
                     <UserRoleBadge role={usr.role} />
                   </td>
 
+                  {/* Manager / Admin Column (SUPER_ADMIN only) */}
+                  {isSuperAdmin && (
+                    <td className="py-3.5 px-3 text-center whitespace-nowrap text-xs text-[var(--text)]">
+                      {usr.role === 'MEMBER' ? (
+                        usr.managerName ? (
+                          <span className="inline-flex items-center gap-1 font-medium text-[var(--text)]">
+                            {usr.managerName}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--text-secondary)] italic">Unassigned</span>
+                        )
+                      ) : usr.role === 'ADMIN' ? (
+                        <span className="text-[var(--text-secondary)] text-[11px]">— (Admin)</span>
+                      ) : (
+                        <span className="text-[var(--text-secondary)] text-[11px]">— (Super Admin)</span>
+                      )}
+                    </td>
+                  )}
+
                   {/* Status Column */}
                   <td className="py-3.5 px-3 text-center whitespace-nowrap">
                     <UserStatusBadge status={usr.status} />
@@ -272,72 +309,87 @@ export const UserTable: React.FC<UserTableProps> = ({
 
                   {/* Actions Column */}
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1.5">
-                      {/* Edit User Button */}
-                      <Link
-                        to={`/users/${usr.id}/edit`}
-                        style={{
-                          backgroundColor: 'var(--btn-secondary-bg)',
-                          borderColor: 'var(--btn-secondary-border)',
-                          color: 'var(--text-secondary)',
-                        }}
-                        className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors"
-                        title="Edit User"
-                        aria-label={`Edit ${usr.name}`}
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </Link>
+                    {(() => {
+                      const isTargetSelf = currentUser?.id === usr.id;
+                      const canAdminManage = isAdmin && usr.role === 'MEMBER' && usr.managerId === currentUser?.id;
+                      const canSuperAdminManage = isSuperAdmin && usr.role !== 'SUPER_ADMIN';
+                      const canManage = canSuperAdminManage || canAdminManage;
 
-                      {/* Reset Password Button */}
-                      <button
-                        type="button"
-                        onClick={() => onResetPassword(usr)}
-                        style={{
-                          backgroundColor: 'var(--btn-secondary-bg)',
-                          borderColor: 'var(--btn-secondary-border)',
-                          color: 'var(--text-secondary)',
-                        }}
-                        className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Reset Password"
-                        aria-label={`Reset password for ${usr.name}`}
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                      </button>
+                      if (!canManage && !isTargetSelf) {
+                        return <span className="text-xs text-[var(--text-secondary)] italic pr-2">—</span>;
+                      }
 
-                      {/* Toggle Active / Inactive Status */}
-                      <button
-                        type="button"
-                        disabled={isToggling}
-                        onClick={() => handleToggleStatus(usr)}
-                        style={{
-                          backgroundColor: 'var(--btn-secondary-bg)',
-                          borderColor: 'var(--btn-secondary-border)',
-                          color:
-                            usr.status === 'ACTIVE'
-                              ? 'var(--status-overdue-text)'
-                              : 'var(--status-success-text)',
-                        }}
-                        className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
-                        title={
-                          usr.status === 'ACTIVE'
-                            ? 'Deactivate User Account'
-                            : 'Activate User Account'
-                        }
-                        aria-label={
-                          usr.status === 'ACTIVE'
-                            ? `Deactivate ${usr.name}`
-                            : `Activate ${usr.name}`
-                        }
-                      >
-                        {isToggling ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : usr.status === 'ACTIVE' ? (
-                          <UserX className="w-3.5 h-3.5" />
-                        ) : (
-                          <UserCheck className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
+                      return (
+                        <div className="inline-flex items-center gap-1.5">
+                          {/* Edit User Button */}
+                          <Link
+                            to={isTargetSelf ? '/profile' : `/users/${usr.id}/edit`}
+                            style={{
+                              backgroundColor: 'var(--btn-secondary-bg)',
+                              borderColor: 'var(--btn-secondary-border)',
+                              color: 'var(--text-secondary)',
+                            }}
+                            className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors"
+                            title={isTargetSelf ? 'Edit My Profile' : 'Edit User'}
+                            aria-label={`Edit ${usr.name}`}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Link>
+
+                          {/* Reset Password Button */}
+                          <button
+                            type="button"
+                            onClick={() => onResetPassword(usr)}
+                            style={{
+                              backgroundColor: 'var(--btn-secondary-bg)',
+                              borderColor: 'var(--btn-secondary-border)',
+                              color: 'var(--text-secondary)',
+                            }}
+                            className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors cursor-pointer"
+                            title={isTargetSelf ? 'Change Password' : 'Reset Password'}
+                            aria-label={`Reset password for ${usr.name}`}
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Toggle Active / Inactive Status */}
+                          {canManage && usr.role !== 'SUPER_ADMIN' && !isTargetSelf && (
+                            <button
+                              type="button"
+                              disabled={isToggling}
+                              onClick={() => handleToggleStatus(usr)}
+                              style={{
+                                backgroundColor: 'var(--btn-secondary-bg)',
+                                borderColor: 'var(--btn-secondary-border)',
+                                color:
+                                  usr.status === 'ACTIVE'
+                                    ? 'var(--status-overdue-text)'
+                                    : 'var(--status-success-text)',
+                              }}
+                              className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+                              title={
+                                usr.status === 'ACTIVE'
+                                  ? 'Deactivate User Account'
+                                  : 'Activate User Account'
+                              }
+                              aria-label={
+                                usr.status === 'ACTIVE'
+                                  ? `Deactivate ${usr.name}`
+                                  : `Activate ${usr.name}`
+                              }
+                            >
+                              {isToggling ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : usr.status === 'ACTIVE' ? (
+                                <UserX className="w-3.5 h-3.5" />
+                              ) : (
+                                <UserCheck className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               );

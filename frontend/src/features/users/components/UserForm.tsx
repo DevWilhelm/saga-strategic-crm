@@ -17,9 +17,10 @@ import {
   userSchema,
   type UserFormValues,
 } from '../schemas/userSchema';
-import { useSaveUser } from '../hooks/useUsers';
-import type { UserRole, UserStatus } from '../../../constants/users';
+import { useSaveUser, useUsers } from '../hooks/useUsers';
+import type { UserStatus } from '../../../constants/users';
 import type { User } from '../../../types/user';
+import { useAuth } from '../../../context/AuthContext';
 
 interface UserFormProps {
   initialData?: User;
@@ -28,10 +29,9 @@ interface UserFormProps {
   onConflict?: (message: string) => void;
 }
 
-const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+const ROLE_DESCRIPTIONS: Record<'ADMIN' | 'MEMBER', string> = {
   ADMIN: 'Full administration access across accounts, contacts, reference lookups, and user management.',
   MEMBER: 'Manage assigned accounts and contacts; can create new accounts and log follow-ups.',
-  VIEWER: 'Read-only oversight for accounts, contacts, and reports; cannot edit records.',
 };
 
 export const UserForm: React.FC<UserFormProps> = ({
@@ -42,6 +42,16 @@ export const UserForm: React.FC<UserFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const saveMutation = useSaveUser();
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const availableRoles: Array<'ADMIN' | 'MEMBER'> = isSuperAdmin ? ['ADMIN', 'MEMBER'] : ['MEMBER'];
+
+  // Fetch admin list for Super Admin's manager assignment dropdown
+  const { data: adminsResponse } = useUsers({ role: 'ADMIN', size: 100 });
+  const adminOptions = React.useMemo(() => {
+    return adminsResponse?.content || [];
+  }, [adminsResponse]);
+
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -64,8 +74,15 @@ export const UserForm: React.FC<UserFormProps> = ({
           });
         }
       }
+      if (isSuperAdmin && data.role === 'MEMBER' && !data.managerId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Please assign an Admin / Manager for this member',
+          path: ['managerId'],
+        });
+      }
     });
-  }, [isEdit]);
+  }, [isEdit, isSuperAdmin]);
 
   const {
     register,
@@ -79,10 +96,11 @@ export const UserForm: React.FC<UserFormProps> = ({
       name: initialData?.name || '',
       code: initialData?.code || '',
       username: initialData?.username || '',
-      role: (initialData?.role as UserRole) || 'MEMBER',
+      role: (initialData?.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'),
       status: (initialData?.status as UserStatus) || 'ACTIVE',
       email: initialData?.email || '',
       phone: initialData?.phone || '',
+      managerId: initialData?.managerId || '',
       password: '',
       confirmPassword: '',
     },
@@ -104,6 +122,13 @@ export const UserForm: React.FC<UserFormProps> = ({
   const onSubmit = async (values: UserFormValues) => {
     setServerErrors({});
 
+    const assignedManagerId =
+      values.role === 'ADMIN'
+        ? null
+        : isSuperAdmin
+          ? (values.managerId || null)
+          : (currentUser?.id || null);
+
     try {
       if (isEdit) {
         await saveMutation.mutateAsync({
@@ -114,8 +139,9 @@ export const UserForm: React.FC<UserFormProps> = ({
             username: values.username.trim().toLowerCase(),
             role: values.role,
             status: values.status,
-            email: values.email && values.email.trim() ? values.email.trim().toLowerCase() : null,
+            email: values.email.trim().toLowerCase(),
             phone: values.phone && values.phone.trim() ? values.phone.trim() : null,
+            managerId: assignedManagerId,
           },
         });
       } else {
@@ -127,8 +153,10 @@ export const UserForm: React.FC<UserFormProps> = ({
             password: values.password || '',
             role: values.role,
             status: values.status,
-            email: values.email && values.email.trim() ? values.email.trim().toLowerCase() : null,
+            email: values.email.trim().toLowerCase(),
             phone: values.phone && values.phone.trim() ? values.phone.trim() : null,
+            managerId: assignedManagerId,
+            permissions: [],
           },
         });
       }
@@ -187,6 +215,38 @@ export const UserForm: React.FC<UserFormProps> = ({
       }
     }
   };
+
+  if (initialData?.role === 'SUPER_ADMIN') {
+    return (
+      <div
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+        }}
+        className="p-8 rounded-xl border shadow-xs text-center space-y-4"
+      >
+        <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h3 className="text-lg font-bold text-[var(--text)]">Super Admin Account Protected</h3>
+        <p className="text-sm text-[var(--text-secondary)] max-w-md mx-auto">
+          The Super Admin account cannot be deactivated or changed. To update your profile photo, name, or change password, please visit your Profile page.
+        </p>
+        <div className="pt-2">
+          <Link
+            to="/users"
+            style={{
+              backgroundColor: 'var(--btn-primary)',
+              color: 'var(--btn-primary-text)',
+            }}
+            className="px-5 py-2 rounded-lg text-sm font-semibold inline-block"
+          >
+            Back to Users Directory
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -321,16 +381,11 @@ export const UserForm: React.FC<UserFormProps> = ({
             )}
           </div>
 
-          {/* Email (Optional) */}
+          {/* Email */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label style={{ color: 'var(--text)' }} className="block text-xs font-semibold uppercase">
-                Email
-              </label>
-              <span style={{ color: 'var(--text-secondary)' }} className="text-[11px] font-normal">
-                Optional
-              </span>
-            </div>
+            <label style={{ color: 'var(--text)' }} className="block text-xs font-semibold uppercase mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               maxLength={254}
@@ -489,7 +544,7 @@ export const UserForm: React.FC<UserFormProps> = ({
 
         {/* Role Selection with Plain Text One-Line Descriptions */}
         <div className="space-y-3 pt-1">
-          {(['ADMIN', 'MEMBER', 'VIEWER'] as const).map((roleKey) => {
+          {availableRoles.map((roleKey) => {
             const isChecked = selectedRole === roleKey;
             return (
               <label
@@ -524,6 +579,44 @@ export const UserForm: React.FC<UserFormProps> = ({
             </p>
           )}
         </div>
+
+        {/* Admin / Manager Selection (When Super Admin assigns a Member) */}
+        {isSuperAdmin && selectedRole === 'MEMBER' && (
+          <div className="pt-3 border-t border-[var(--border)]">
+            <label style={{ color: 'var(--text)' }} className="block text-xs font-semibold uppercase mb-1">
+              Assigned Admin / Manager <span className="text-red-500">*</span>
+            </label>
+            <select
+              {...register('managerId')}
+              style={{
+                borderColor:
+                  errors.managerId || serverErrors.managerId
+                    ? 'var(--status-overdue-text)'
+                    : 'var(--border)',
+                backgroundColor: 'var(--background)',
+                color: 'var(--text)',
+              }}
+              className="w-full px-3.5 py-2 text-sm rounded-lg border outline-none focus:border-[var(--btn-primary)] cursor-pointer"
+            >
+              <option value="">Select an Admin</option>
+              {adminOptions.map((admin) => (
+                <option key={admin.id} value={admin.id}>
+                  {admin.name} (@{admin.username})
+                </option>
+              ))}
+            </select>
+            {errors.managerId && (
+              <p style={{ color: 'var(--status-overdue-text)' }} className="text-xs mt-1">
+                {errors.managerId.message}
+              </p>
+            )}
+            {serverErrors.managerId && (
+              <p style={{ color: 'var(--status-overdue-text)' }} className="text-xs mt-1">
+                {serverErrors.managerId}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Account Status */}
         <div className="pt-4 border-t border-[var(--border)]">

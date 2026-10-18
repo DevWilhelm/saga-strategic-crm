@@ -35,11 +35,10 @@ export const AccountFiltersBar: React.FC<AccountFiltersBarProps> = ({
     setSearchTerm(filters.q || '');
   }
 
-  // Dependent subcategories
-  const availableSubCategories = lookups?.subCategories.filter((s) => {
-    if (!filters.categoryId) return true;
-    return s.categoryId === filters.categoryId;
-  }) || [];
+  // Dependent subcategories (strictly available only when a Category is selected)
+  const availableSubCategories = filters.categoryId
+    ? lookups?.subCategories.filter((s) => s.categoryId === filters.categoryId) || []
+    : [];
 
   // Active filter count (excluding page, size, sort, q)
   const activeFilterKeys = [
@@ -236,12 +235,22 @@ export const AccountFiltersBar: React.FC<AccountFiltersBarProps> = ({
               Sub-Category
             </label>
             <select
-              value={filters.subCategoryId || ''}
+              value={filters.categoryId ? (filters.subCategoryId || '') : ''}
+              disabled={!filters.categoryId}
               onChange={(e) => onFilterChange({ subCategoryId: e.target.value || undefined, page: 0 })}
-              style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)' }}
-              className="w-full text-xs px-2.5 py-1.5 rounded-md border outline-none"
+              style={{
+                borderColor: 'var(--border)',
+                backgroundColor: !filters.categoryId ? 'var(--background)' : 'var(--surface)',
+                color: !filters.categoryId ? 'var(--text-secondary)' : 'var(--text)',
+              }}
+              className={`w-full text-xs px-2.5 py-1.5 rounded-md border outline-none transition-opacity ${
+                !filters.categoryId ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              title={!filters.categoryId ? 'Select a category first' : undefined}
             >
-              <option value="">All Sub-Categories</option>
+              <option value="">
+                {!filters.categoryId ? 'Select a category first' : 'All Sub-Categories'}
+              </option>
               {availableSubCategories.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}

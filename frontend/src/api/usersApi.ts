@@ -35,6 +35,7 @@ export const usersApi = {
     if (filters.q) params.set('q', filters.q);
     if (filters.role) params.set('role', filters.role);
     if (filters.status) params.set('status', filters.status);
+    if (filters.managerId) params.set('managerId', filters.managerId);
     if (filters.page !== undefined) params.set('page', String(filters.page));
     if (filters.size !== undefined) params.set('size', String(filters.size));
     if (filters.sort) params.set('sort', filters.sort);

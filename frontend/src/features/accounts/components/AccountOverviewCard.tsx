@@ -104,13 +104,23 @@ export const AccountOverviewCard: React.FC<AccountOverviewCardProps> = ({ accoun
           </span>
         </div>
 
-        {/* Category & SubCategory */}
-        <div className="sm:col-span-2">
+        {/* Category */}
+        <div>
           <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-medium block mb-1">
-            Industry Classification
+            Category
           </span>
           <span style={{ color: 'var(--text)' }} className="text-sm font-semibold">
-            {account.categoryName} {account.subCategoryName ? `› ${account.subCategoryName}` : ''}
+            {account.categoryName}
+          </span>
+        </div>
+
+        {/* Sub-Category */}
+        <div>
+          <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-medium block mb-1">
+            Sub-Category
+          </span>
+          <span style={{ color: 'var(--text)' }} className="text-sm font-semibold">
+            {account.subCategoryName || '—'}
           </span>
         </div>
       </div>

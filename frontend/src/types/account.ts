@@ -135,3 +135,49 @@ export interface ApiValidationError {
   message: string;
   errors: FieldValidationError[];
 }
+
+// ---------------------------------------------------------------------------
+// Account Import Types
+// ---------------------------------------------------------------------------
+export type ImportMode = 'VALIDATE' | 'COMMIT';
+export type DuplicatePolicy = 'SKIP' | 'ALLOW';
+export type ImportRowResultStatus = 'VALID' | 'CREATED' | 'SKIPPED' | 'ERROR';
+
+export interface AccountImportRowPayload {
+  rowNumber: number;
+  name: string;
+  businessLine: BusinessLine;
+  categoryId: string;
+  subCategoryId?: string | null;
+  serviceId: string;
+  tier: Tier;
+  ownerId: string;
+  dealSide?: DealSide | null;
+  country?: string | null;
+  websiteUrl?: string | null;
+  sourceRef?: string | null;
+  note?: string | null;
+  status?: AccountStatus;
+}
+
+export interface AccountImportPayload {
+  mode: ImportMode;
+  duplicatePolicy: DuplicatePolicy;
+  rows: AccountImportRowPayload[];
+}
+
+export interface AccountImportRowResult {
+  rowNumber: number;
+  status: ImportRowResultStatus;
+  accountId?: string;
+  errors?: FieldValidationError[];
+}
+
+export interface AccountImportResponse {
+  total: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  results: AccountImportRowResult[];
+}
+

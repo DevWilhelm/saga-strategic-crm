@@ -15,10 +15,9 @@ const DEV_PERSONAS: Array<{
   role: UserRole;
   desc: string;
 }> = [
-  { id: 'usr-ploy', name: 'Ploy S.', username: 'ploy.s', role: 'ADMIN', desc: 'Full System Admin' },
-  { id: 'usr-1', name: 'Danai K.', username: 'danai.k', role: 'MEMBER', desc: 'Healthcare Lead' },
-  { id: 'usr-2', name: 'Somchai P.', username: 'somchai.p', role: 'MEMBER', desc: 'Financial Advisory' },
-  { id: 'usr-5', name: 'Ananda K.', username: 'ananda.k', role: 'VIEWER', desc: 'Read-only Analyst' },
+  { id: 'usr-super', name: 'Alex Mercer', username: 'alex.mercer', role: 'SUPER_ADMIN', desc: 'Single Super Admin' },
+  { id: 'usr-ploy', name: 'Ploy S.', username: 'ploy.s', role: 'ADMIN', desc: 'Senior Administrator' },
+  { id: 'usr-1', name: 'Danai K.', username: 'danai.k', role: 'MEMBER', desc: 'Member (Reports to Ploy S.)' },
 ];
 
 export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
@@ -60,12 +59,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
 
   const getRoleBadgeClasses = (role?: UserRole) => {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return 'bg-[var(--sidebar)] text-[var(--sidebar-selected)] shadow-xs';
       case 'ADMIN':
         return 'bg-[var(--sidebar)] text-[var(--sidebar-text)]';
       case 'MEMBER':
         return 'bg-[var(--status-info-bg)] text-[var(--status-info-text)]';
-      case 'VIEWER':
-        return 'bg-[var(--relationship-cold-bg)] text-[var(--relationship-cold-text)]';
       default:
         return 'bg-[var(--background)] text-[var(--text-secondary)]';
     }

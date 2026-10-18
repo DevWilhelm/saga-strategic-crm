@@ -10,7 +10,11 @@ import { ConflictModalDialog } from '../components/ConflictModalDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
 import { Can } from '../../../auth/Can';
 
+import { useAuth } from '../../../context/AuthContext';
+
 export const UserListPage: React.FC = () => {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Dialog states
@@ -23,11 +27,18 @@ export const UserListPage: React.FC = () => {
       q: searchParams.get('q') || undefined,
       role: (searchParams.get('role') as UserFilters['role']) || undefined,
       status: (searchParams.get('status') as UserFilters['status']) || undefined,
+      managerId: (isSuperAdmin ? searchParams.get('managerId') : undefined) || undefined,
       page: searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 0,
       size: searchParams.get('size') ? parseInt(searchParams.get('size')!, 10) : 10,
       sort: searchParams.get('sort') || 'updatedDate,desc',
     };
-  }, [searchParams]);
+  }, [searchParams, isSuperAdmin]);
+
+  // Fetch admin list for Super Admin's manager filter
+  const { data: adminsResponse } = useUsers({ role: 'ADMIN', size: 100 });
+  const adminOptions = useMemo(() => {
+    return adminsResponse?.content.map((u) => ({ id: u.id, name: u.name })) || [];
+  }, [adminsResponse]);
 
   // Sync state back to URL query string
   const updateFilters = useCallback(
@@ -103,6 +114,8 @@ export const UserListPage: React.FC = () => {
         filters={filters}
         onFilterChange={updateFilters}
         onReset={resetFilters}
+        isSuperAdmin={isSuperAdmin}
+        adminOptions={adminOptions}
       />
 
       {/* Content Area */}

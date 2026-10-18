@@ -7,12 +7,16 @@ interface UserFiltersBarProps {
   filters: UserFilters;
   onFilterChange: (newFilters: Partial<UserFilters>) => void;
   onReset: () => void;
+  isSuperAdmin?: boolean;
+  adminOptions?: Array<{ id: string; name: string }>;
 }
 
 export const UserFiltersBar: React.FC<UserFiltersBarProps> = ({
   filters,
   onFilterChange,
   onReset,
+  isSuperAdmin = false,
+  adminOptions = [],
 }) => {
   const [searchInput, setSearchInput] = useState(filters.q || '');
 
@@ -33,7 +37,9 @@ export const UserFiltersBar: React.FC<UserFiltersBarProps> = ({
     setSearchInput(filters.q || '');
   }
 
-  const hasActiveFilters = Boolean(filters.q || filters.role || filters.status);
+  const hasActiveFilters = Boolean(
+    filters.q || filters.role || filters.status || filters.managerId
+  );
 
   return (
     <div
@@ -97,14 +103,14 @@ export const UserFiltersBar: React.FC<UserFiltersBarProps> = ({
             aria-label="Filter by role"
           >
             <option value="">All Roles</option>
+            {isSuperAdmin && <option value="SUPER_ADMIN">SUPER ADMIN</option>}
             <option value="ADMIN">ADMIN</option>
             <option value="MEMBER">MEMBER</option>
-            <option value="VIEWER">VIEWER</option>
           </select>
         </div>
 
         {/* Status Filter */}
-        <div className="w-full md:w-44">
+        <div className="w-full md:w-40">
           <select
             value={filters.status || ''}
             onChange={(e) =>
@@ -126,6 +132,35 @@ export const UserFiltersBar: React.FC<UserFiltersBarProps> = ({
             <option value="INACTIVE">INACTIVE</option>
           </select>
         </div>
+
+        {/* Admin / Manager Filter (SUPER_ADMIN only) */}
+        {isSuperAdmin && (
+          <div className="w-full md:w-48">
+            <select
+              value={filters.managerId || ''}
+              onChange={(e) =>
+                onFilterChange({
+                  managerId: e.target.value || undefined,
+                  page: 0,
+                })
+              }
+              style={{
+                backgroundColor: 'var(--background)',
+                borderColor: 'var(--border)',
+                color: 'var(--text)',
+              }}
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none cursor-pointer focus:border-[var(--btn-primary)]"
+              aria-label="Filter by manager/admin"
+            >
+              <option value="">All Admins</option>
+              {adminOptions.map((admin) => (
+                <option key={admin.id} value={admin.id}>
+                  {admin.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Reset Button */}
         {hasActiveFilters && (

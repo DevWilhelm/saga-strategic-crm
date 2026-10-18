@@ -9,8 +9,13 @@ import type {
   PaginatedAccountsResponse,
   NextActionInfo,
   FieldValidationError,
+  AccountImportPayload,
+  AccountImportResponse,
+  AccountImportRowResult,
 } from '../../types/account';
 import type { AccountLookups } from '../../types/lookup';
+import { can } from '../../auth/permissions';
+import { buildAccountsCsv, buildAccountsXlsx } from '../../features/import-export/utils/exportHelper';
 
 // Helper to format local date
 const getTodayDateStr = (): string => {
@@ -231,6 +236,290 @@ export const accountHandlers = [
       statuses: ['ACTIVE', 'INACTIVE'],
     };
     return HttpResponse.json(lookups);
+  }),
+
+  // 8. GET /api/accounts/export (All rows matching active filters & sort, format=xlsx|csv)
+  http.get('*/api/accounts/export', async ({ request }) => {
+    await delay(200);
+    const currentUser = mockStore.getCurrentMockUser();
+
+    // Permission check
+    if (!can('account.export', undefined, currentUser)) {
+      return HttpResponse.json(
+        { status: 403, error: 'Forbidden', message: 'You do not have permission to export accounts.' },
+        { status: 403 }
+      );
+    }
+
+    const url = new URL(request.url);
+    const format = (url.searchParams.get('format') || 'xlsx').toLowerCase();
+    const q = url.searchParams.get('q')?.trim().toLowerCase() || '';
+    const businessLine = url.searchParams.get('businessLine');
+    const categoryId = url.searchParams.get('categoryId');
+    const subCategoryId = url.searchParams.get('subCategoryId');
+    const serviceId = url.searchParams.get('serviceId');
+    const tier = url.searchParams.get('tier');
+    const dealSide = url.searchParams.get('dealSide');
+    const ownerId = url.searchParams.get('ownerId');
+    const country = url.searchParams.get('country');
+    const status = url.searchParams.get('status');
+    const sortParam = url.searchParams.get('sort') || 'updatedDate,desc';
+
+    const todayStr = getTodayDateStr();
+
+    // Filter accounts across all records
+    const filtered = mockStore.accounts.filter((acc) => {
+      if (q) {
+        const matchesName = acc.name.toLowerCase().includes(q);
+        const matchesWebsite = acc.websiteUrl ? acc.websiteUrl.toLowerCase().includes(q) : false;
+        const matchesCountry = acc.country.toLowerCase().includes(q);
+        if (!matchesName && !matchesWebsite && !matchesCountry) return false;
+      }
+      if (businessLine && acc.businessLine !== businessLine) return false;
+      if (categoryId && acc.categoryId !== categoryId) return false;
+      if (subCategoryId && acc.subCategoryId !== subCategoryId) return false;
+      if (serviceId && acc.serviceId !== serviceId) return false;
+      if (tier && acc.tier !== tier) return false;
+      if (dealSide && acc.dealSide !== dealSide) return false;
+      if (ownerId && acc.ownerId !== ownerId) return false;
+      if (country && acc.country.toLowerCase() !== country.toLowerCase()) return false;
+      if (status && acc.status !== status) return false;
+      return true;
+    });
+
+    // Check row limit of 10,000
+    if (filtered.length > 10000) {
+      return HttpResponse.json(
+        {
+          status: 400,
+          error: 'Bad Request',
+          message: 'Export limit exceeded. Maximum 10,000 accounts can be exported at once. Please narrow your filters.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Sort accounts
+    const [sortField = 'updatedDate', sortDirection = 'desc'] = sortParam.split(',');
+    const isDesc = sortDirection.toLowerCase() === 'desc';
+
+    filtered.sort((a, b) => {
+      if (sortField === 'name') {
+        const cmp = a.name.localeCompare(b.name);
+        return isDesc ? -cmp : cmp;
+      }
+      if (sortField === 'tier') {
+        const cmp = a.tier.localeCompare(b.tier);
+        return isDesc ? -cmp : cmp;
+      }
+      const valA = a.updatedDate || '';
+      const valB = b.updatedDate || '';
+      const cmp = valA.localeCompare(valB);
+      return isDesc ? -cmp : cmp;
+    });
+
+    const lookups: AccountLookups = {
+      businessLines: ['Healthcare', 'Financial Advisory', 'Networking & Partnerships'],
+      categories: mockStore.categories,
+      subCategories: mockStore.subCategories,
+      services: mockStore.services,
+      owners: mockStore.users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        code: u.code,
+        username: u.username,
+        photoUrl: u.photoUrl ?? null,
+      })),
+      tiers: ['TIER_1', 'TIER_2', 'TIER_3'],
+      dealSides: ['BUY_SIDE', 'SELL_SIDE'],
+      countries: mockStore.countries,
+      statuses: ['ACTIVE', 'INACTIVE'],
+    };
+
+    const filename = `accounts-${todayStr}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+
+    if (format === 'csv') {
+      const csvBytes = buildAccountsCsv(filtered, lookups);
+      return new HttpResponse(csvBytes, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      });
+    }
+
+    const xlsxBytes = await buildAccountsXlsx(filtered, lookups);
+    return new HttpResponse(xlsxBytes, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  }),
+
+  // 9. POST /api/accounts/import (Validate or Commit spreadsheet rows)
+  http.post('*/api/accounts/import', async ({ request }) => {
+    await delay(300);
+    const currentUser = mockStore.getCurrentMockUser();
+
+    // Permission check
+    if (!can('account.import', undefined, currentUser)) {
+      return HttpResponse.json(
+        { status: 403, error: 'Forbidden', message: 'You do not have permission to import accounts.' },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as AccountImportPayload;
+
+    if (!body || !body.rows || !Array.isArray(body.rows)) {
+      return HttpResponse.json(
+        { status: 400, error: 'Bad Request', message: 'Invalid import payload.' },
+        { status: 400 }
+      );
+    }
+
+    if (body.rows.length > 500) {
+      return HttpResponse.json(
+        { status: 400, error: 'Bad Request', message: 'Import limit exceeded. Maximum 500 accounts can be imported at once.' },
+        { status: 400 }
+      );
+    }
+
+    const todayStr = getTodayDateStr();
+    const existingNames = new Set(mockStore.accounts.map((a) => a.name.trim().toLowerCase()));
+    const seenBatchNames = new Set<string>();
+
+    const results: AccountImportRowResult[] = [];
+
+    body.rows.forEach((row) => {
+      const errors: FieldValidationError[] = [];
+
+      // Validations
+      if (!row.name || !row.name.trim()) {
+        errors.push({ field: 'name', message: 'Account name is required' });
+      } else if (row.name.trim().length > 200) {
+        errors.push({ field: 'name', message: 'Account name must not exceed 200 characters' });
+      }
+
+      if (!row.businessLine) {
+        errors.push({ field: 'businessLine', message: 'Business line is required' });
+      }
+
+      if (!row.categoryId) {
+        errors.push({ field: 'categoryId', message: 'Category is required' });
+      } else if (!mockStore.categories.some((c) => c.id === row.categoryId)) {
+        errors.push({ field: 'categoryId', message: 'Category not found' });
+      }
+
+      if (row.subCategoryId) {
+        const sub = mockStore.subCategories.find((s) => s.id === row.subCategoryId);
+        if (!sub) {
+          errors.push({ field: 'subCategoryId', message: 'Sub-category not found' });
+        } else if (sub.categoryId !== row.categoryId) {
+          errors.push({ field: 'subCategoryId', message: 'Sub-category does not belong to selected category' });
+        }
+      }
+
+      if (!row.serviceId) {
+        errors.push({ field: 'serviceId', message: 'Service is required' });
+      } else if (!mockStore.services.some((s) => s.id === row.serviceId)) {
+        errors.push({ field: 'serviceId', message: 'Service not found' });
+      }
+
+      if (!row.tier) {
+        errors.push({ field: 'tier', message: 'Tier is required' });
+      }
+
+      // MEMBER owner rule
+      if (currentUser.role === 'MEMBER' && row.ownerId && row.ownerId !== currentUser.id) {
+        errors.push({ field: 'ownerId', message: 'Only an admin can assign other owners' });
+      }
+
+      if (row.websiteUrl && row.websiteUrl.trim() && !isValidUrl(row.websiteUrl.trim())) {
+        errors.push({ field: 'websiteUrl', message: 'Website must be a valid HTTP or HTTPS URL' });
+      }
+
+      if (row.note && row.note.length > 2000) {
+        errors.push({ field: 'note', message: 'Note must not exceed 2000 characters' });
+      }
+
+      if (errors.length > 0) {
+        results.push({
+          rowNumber: row.rowNumber,
+          status: 'ERROR',
+          errors,
+        });
+        return;
+      }
+
+      // Check duplicate
+      const lowerName = row.name.trim().toLowerCase();
+      const isDup = existingNames.has(lowerName) || seenBatchNames.has(lowerName);
+      seenBatchNames.add(lowerName);
+
+      if (isDup && body.duplicatePolicy === 'SKIP') {
+        results.push({
+          rowNumber: row.rowNumber,
+          status: 'SKIPPED',
+        });
+        return;
+      }
+
+      // Valid row
+      if (body.mode === 'COMMIT') {
+        const assignedOwnerId = row.ownerId || currentUser.id;
+        const newAccount: Account = {
+          id: `acc-imp-${Date.now()}-${row.rowNumber}`,
+          name: row.name.trim(),
+          businessLine: row.businessLine,
+          country: row.country?.trim() || 'Thailand',
+          websiteUrl: row.websiteUrl?.trim() || null,
+          categoryId: row.categoryId,
+          subCategoryId: row.subCategoryId || null,
+          tier: row.tier,
+          ownerId: assignedOwnerId,
+          status: row.status || 'ACTIVE',
+          dealSide: row.dealSide || null,
+          serviceId: row.serviceId,
+          sourceRef: row.sourceRef?.trim() || null,
+          note: row.note?.trim() || null,
+          createdBy: currentUser.id,
+          createdDate: todayStr,
+          updatedBy: currentUser.id,
+          updatedDate: todayStr,
+        };
+
+        mockStore.accounts.push(newAccount);
+        existingNames.add(lowerName);
+
+        results.push({
+          rowNumber: row.rowNumber,
+          status: 'CREATED',
+          accountId: newAccount.id,
+        });
+      } else {
+        results.push({
+          rowNumber: row.rowNumber,
+          status: 'VALID',
+        });
+      }
+    });
+
+    const total = body.rows.length;
+    const created = results.filter((r) => r.status === 'CREATED' || r.status === 'VALID').length;
+    const skipped = results.filter((r) => r.status === 'SKIPPED').length;
+    const failed = results.filter((r) => r.status === 'ERROR').length;
+
+    const response: AccountImportResponse = {
+      total,
+      created,
+      skipped,
+      failed,
+      results,
+    };
+
+    return HttpResponse.json(response);
   }),
 
   // 2. GET /api/accounts/:id (Account Detail)

@@ -53,14 +53,14 @@ export const AccountNotesTab: React.FC<AccountNotesTabProps> = ({ accountId }) =
         <div className="flex items-center gap-2 mb-2">
           <MessageSquarePlus className="w-4 h-4 text-teal-700" />
           <span style={{ color: 'var(--text)' }} className="text-xs font-bold uppercase tracking-wider">
-            Add Activity Note
+            Add History Note
           </span>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <textarea
             value={newNoteText}
             onChange={(e) => setNewNoteText(e.target.value)}
-            placeholder="Record meeting outcomes, partner calls, or strategic feedback..."
+            placeholder="Record past meetings, calls, or outcomes..."
             rows={2}
             style={{
               borderColor: 'var(--border)',
@@ -79,7 +79,7 @@ export const AccountNotesTab: React.FC<AccountNotesTabProps> = ({ accountId }) =
             className="self-end sm:self-stretch px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-40 hover:opacity-95 cursor-pointer shrink-0"
           >
             <Send className="w-4 h-4" />
-            {addNoteMutation.isPending ? 'Saving...' : 'Post Note'}
+            {addNoteMutation.isPending ? 'Saving...' : 'Post History Note'}
           </button>
         </div>
       </form>
@@ -94,8 +94,8 @@ export const AccountNotesTab: React.FC<AccountNotesTabProps> = ({ accountId }) =
         />
       ) : !notes || notes.length === 0 ? (
         <EmptyState
-          title="No notes recorded yet"
-          description="Use the box above to log meetings, partnership discussions, or execution updates."
+          title="No history notes recorded yet"
+          description="Use the box above to log past meetings, partner discussions, or completed calls."
         />
       ) : (
         <div className="space-y-3">

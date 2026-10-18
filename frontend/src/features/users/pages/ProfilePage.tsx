@@ -228,7 +228,7 @@ export const ProfilePage: React.FC = () => {
     try {
       const updatedUser = await updateProfileMutation.mutateAsync({
         name: values.name.trim(),
-        email: values.email && values.email.trim() ? values.email.trim().toLowerCase() : null,
+        email: values.email.trim().toLowerCase(),
         phone: values.phone && values.phone.trim() ? values.phone.trim() : null,
       });
 
@@ -602,20 +602,15 @@ export const ProfilePage: React.FC = () => {
                 )}
               </div>
 
-              {/* Email Field (Optional) */}
+              {/* Email Field */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label
-                    htmlFor="profileEmail"
-                    style={{ color: 'var(--text)' }}
-                    className="block text-xs font-semibold uppercase tracking-wider"
-                  >
-                    Email
-                  </label>
-                  <span style={{ color: 'var(--text-secondary)' }} className="text-[11px] font-normal">
-                    Optional
-                  </span>
-                </div>
+                <label
+                  htmlFor="profileEmail"
+                  style={{ color: 'var(--text)' }}
+                  className="block text-xs font-semibold uppercase tracking-wider mb-1"
+                >
+                  Email <span className="text-red-500">*</span>
+                </label>
                 <input
                   id="profileEmail"
                   type="email"

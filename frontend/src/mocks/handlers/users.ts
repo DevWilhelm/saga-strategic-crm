@@ -66,9 +66,11 @@ export const userHandlers = [
       username: current.username,
       role: current.role,
       status: current.status,
-      email: current.email ?? null,
+      email: current.email,
       phone: current.phone ?? null,
       photoUrl: current.photoUrl ?? null,
+      managerId: current.managerId ?? null,
+      managerName: current.managerName ?? null,
       permissions: current.permissions,
     };
     return HttpResponse.json(me);
@@ -81,12 +83,9 @@ export const userHandlers = [
     const body = (await request.json()) as UpdateMyProfileDTO & Record<string, unknown>;
 
     // SECURITY & BUSINESS RULE:
-    // /api/me is self-service and allowed for all roles (ADMIN, MEMBER, VIEWER).
+    // /api/me is self-service and allowed for all roles (SUPER_ADMIN, ADMIN, MEMBER).
     // The request body must contain ONLY the user's name, email, and phone.
-    // The server and mock must strictly ignore or reject username, code, role, and status:
-    // a user can NEVER change their own role (preventing privilege escalation, e.g. promoting self to ADMIN)
-    // or status (preventing self-reactivation or bypassing deactivation rules) through this endpoint.
-    // Privileged mutations must be performed exclusively by authorized administrators via /api/users endpoints.
+    // The server and mock must strictly ignore or reject username, code, role, and status.
 
     const errors: FieldValidationError[] = [];
     if (!body.name || !body.name.trim()) {
@@ -95,9 +94,30 @@ export const userHandlers = [
       errors.push({ field: 'name', message: 'Name must not exceed 100 characters' });
     }
 
-    const emailErr = validateEmailFormat(body.email);
-    if (emailErr) {
-      errors.push({ field: 'email', message: emailErr });
+    if (!body.email || !body.email.trim()) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else {
+      const emailErr = validateEmailFormat(body.email);
+      if (emailErr) {
+        errors.push({ field: 'email', message: emailErr });
+      } else {
+        const duplicate = mockStore.users.some(
+          (u) =>
+            u.id !== currentUser.id &&
+            u.email &&
+            u.email.toLowerCase() === body.email.trim().toLowerCase()
+        );
+        if (duplicate) {
+          return HttpResponse.json(
+            {
+              status: 409,
+              error: 'Conflict',
+              message: `Email '${body.email.trim()}' is already in use by another user.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const phoneErr = validatePhoneFormat(body.phone);
@@ -119,7 +139,7 @@ export const userHandlers = [
 
     const todayStr = getTodayDateStr();
     currentUser.name = body.name.trim();
-    currentUser.email = body.email && body.email.trim() ? body.email.trim().toLowerCase() : null;
+    currentUser.email = body.email.trim().toLowerCase();
     currentUser.phone = body.phone && body.phone.trim() ? body.phone.trim() : null;
     currentUser.updatedDate = todayStr;
 
@@ -134,6 +154,8 @@ export const userHandlers = [
       email: currentUser.email,
       phone: currentUser.phone,
       photoUrl: currentUser.photoUrl ?? null,
+      managerId: currentUser.managerId ?? null,
+      managerName: currentUser.managerName ?? null,
       permissions: currentUser.permissions,
     };
     return HttpResponse.json(me);
@@ -265,13 +287,13 @@ export const userHandlers = [
     return HttpResponse.json(options);
   }),
 
-  // 2. GET /api/users (Paginated User List with Counts - ADMIN Only)
+  // 2. GET /api/users (Paginated User List with Counts - SUPER_ADMIN & ADMIN Only)
   http.get('*/api/users', async ({ request }) => {
     await delay(150);
     const currentUser = mockStore.getCurrentMockUser();
 
-    // Permission check: requires user.manage
-    if (!currentUser.permissions.includes('user.manage') && currentUser.role !== 'ADMIN') {
+    // Permission check: MEMBER accounts cannot access user directory (403 Forbidden)
+    if (currentUser.role === 'MEMBER' || !currentUser.permissions.includes('user.manage')) {
       return HttpResponse.json(
         {
           status: 403,
@@ -286,6 +308,7 @@ export const userHandlers = [
     const q = url.searchParams.get('q')?.trim().toLowerCase() || '';
     const role = url.searchParams.get('role');
     const status = url.searchParams.get('status');
+    const managerIdParam = url.searchParams.get('managerId');
     const page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10));
     const size = Math.min(100, Math.max(1, parseInt(url.searchParams.get('size') || '10', 10)));
     const sortParam = url.searchParams.get('sort') || 'name,asc';
@@ -312,20 +335,33 @@ export const userHandlers = [
       );
     }
 
-    // Filter users
+    // Filter users with hierarchical scoping
     const filtered = mockStore.users.filter((user) => {
+      // Role Scoping: ADMIN sees ONLY self + own assigned members
+      if (currentUser.role === 'ADMIN') {
+        const isSelf = user.id === currentUser.id;
+        const isOwnMember = user.role === 'MEMBER' && user.managerId === currentUser.id;
+        if (!isSelf && !isOwnMember) return false;
+      }
+
+      // SUPER_ADMIN filtering by managerId
+      if (currentUser.role === 'SUPER_ADMIN' && managerIdParam) {
+        if (user.managerId !== managerIdParam) return false;
+      }
+
       if (q) {
         const matchesName = user.name.toLowerCase().includes(q);
         const matchesUsername = user.username.toLowerCase().includes(q);
-        const matchesCode = user.code.toLowerCase().includes(q);
-        if (!matchesName && !matchesUsername && !matchesCode) return false;
+        const matchesCode = user.code ? user.code.toLowerCase().includes(q) : false;
+        const matchesEmail = user.email ? user.email.toLowerCase().includes(q) : false;
+        if (!matchesName && !matchesUsername && !matchesCode && !matchesEmail) return false;
       }
       if (role && user.role !== role) return false;
       if (status && user.status !== status) return false;
       return true;
     });
 
-    // Enrich with dynamic accountCount and contactCount from shared store
+    // Enrich with dynamic accountCount, contactCount, and managerName from shared store
     const enriched: UserListItem[] = filtered.map((u) => {
       const accountCount = mockStore.accounts.filter((a) => a.ownerId === u.id).length;
       // Contacts belonging to accounts owned by this user
@@ -334,8 +370,12 @@ export const userHandlers = [
         .map((a) => a.id);
       const contactCount = mockStore.contacts.filter((c) => ownedAccountIds.includes(c.companyId)).length;
 
+      const manager = u.managerId ? mockStore.users.find((m) => m.id === u.managerId) : null;
+      const managerName = manager ? manager.name : (u.managerName ?? null);
+
       return {
         ...u,
+        managerName,
         accountCount,
         contactCount,
       };
@@ -402,12 +442,13 @@ export const userHandlers = [
     return HttpResponse.json(detail);
   }),
 
-  // 5. POST /api/users (Create User - ADMIN Only)
+  // 5. POST /api/users (Create User - SUPER_ADMIN & ADMIN Only)
   http.post('*/api/users', async ({ request }) => {
     await delay(200);
     const currentUser = mockStore.getCurrentMockUser();
 
-    if (!currentUser.permissions.includes('user.manage') && currentUser.role !== 'ADMIN') {
+    // Permission check
+    if (currentUser.role === 'MEMBER' || !currentUser.permissions.includes('user.manage')) {
       return HttpResponse.json(
         { status: 403, error: 'Forbidden', message: 'Access denied. You cannot create users.' },
         { status: 403 }
@@ -416,6 +457,31 @@ export const userHandlers = [
 
     const body = (await request.json()) as CreateUserDTO;
     const errors: FieldValidationError[] = [];
+
+    // Role creation rules:
+    // Super Admin cannot be created via API
+    if (body.role === 'SUPER_ADMIN') {
+      return HttpResponse.json(
+        {
+          status: 409,
+          error: 'Conflict',
+          message: 'The Super Admin account cannot be created or duplicated.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Admins can create ONLY Member accounts
+    if (currentUser.role === 'ADMIN' && body.role !== 'MEMBER') {
+      return HttpResponse.json(
+        {
+          status: 403,
+          error: 'Forbidden',
+          message: 'Administrators can only create Member accounts.',
+        },
+        { status: 403 }
+      );
+    }
 
     // Validations
     if (!body.name || !body.name.trim()) {
@@ -439,7 +505,7 @@ export const userHandlers = [
     if (!body.username || !body.username.trim()) {
       errors.push({ field: 'username', message: 'Username is required' });
     } else {
-      const username = body.username.trim();
+      const username = body.username.trim().toLowerCase();
       if (username.length < 3 || username.length > 50) {
         errors.push({ field: 'username', message: 'Username must be between 3 and 50 characters' });
       } else if (!/^[a-zA-Z0-9._]+$/.test(username)) {
@@ -449,10 +515,42 @@ export const userHandlers = [
         });
       } else {
         const duplicateUsername = mockStore.users.some(
-          (u) => u.username.toLowerCase() === username.toLowerCase()
+          (u) => u.username.toLowerCase() === username
         );
         if (duplicateUsername) {
-          errors.push({ field: 'username', message: `Username '${username}' is already in use` });
+          return HttpResponse.json(
+            {
+              status: 409,
+              error: 'Conflict',
+              message: `Username '${username}' is already in use by another account.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
+    // Required Email validation & Uniqueness check
+    if (!body.email || !body.email.trim()) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else {
+      const emailErr = validateEmailFormat(body.email);
+      if (emailErr) {
+        errors.push({ field: 'email', message: emailErr });
+      } else {
+        const emailTrimmed = body.email.trim().toLowerCase();
+        const duplicateEmail = mockStore.users.some(
+          (u) => u.email && u.email.toLowerCase() === emailTrimmed
+        );
+        if (duplicateEmail) {
+          return HttpResponse.json(
+            {
+              status: 409,
+              error: 'Conflict',
+              message: `Email '${emailTrimmed}' is already in use by another account.`,
+            },
+            { status: 409 }
+          );
         }
       }
     }
@@ -466,14 +564,27 @@ export const userHandlers = [
       errors.push({ field: 'role', message: 'Role is required' });
     }
 
-    const emailErr = validateEmailFormat(body.email);
-    if (emailErr) {
-      errors.push({ field: 'email', message: emailErr });
-    }
-
     const phoneErr = validatePhoneFormat(body.phone);
     if (phoneErr) {
       errors.push({ field: 'phone', message: phoneErr });
+    }
+
+    // Manager assignment
+    let assignedManagerId: string | null = null;
+    let assignedManagerName: string | null = null;
+    if (body.role === 'MEMBER') {
+      if (currentUser.role === 'ADMIN') {
+        assignedManagerId = currentUser.id;
+        assignedManagerName = currentUser.name;
+      } else if (currentUser.role === 'SUPER_ADMIN') {
+        assignedManagerId = body.managerId || null;
+        if (!assignedManagerId) {
+          errors.push({ field: 'managerId', message: 'Please assign an Admin / Manager for this member' });
+        } else {
+          const mgr = mockStore.users.find((u) => u.id === assignedManagerId);
+          assignedManagerName = mgr ? mgr.name : null;
+        }
+      }
     }
 
     if (errors.length > 0) {
@@ -498,12 +609,14 @@ export const userHandlers = [
       id: newUserId,
       name: body.name.trim(),
       code: body.code ? body.code.trim().toUpperCase() : body.name.slice(0, 2).toUpperCase(),
-      username: body.username.trim(),
+      username: body.username.trim().toLowerCase(),
       role: body.role,
       status: body.status || 'ACTIVE',
-      email: body.email && body.email.trim() ? body.email.trim().toLowerCase() : null,
+      email: body.email.trim().toLowerCase(),
       phone: body.phone && body.phone.trim() ? body.phone.trim() : null,
-      photoUrl: null, // Admin cannot upload or set someone else's photo
+      photoUrl: null,
+      managerId: assignedManagerId,
+      managerName: assignedManagerName,
       permissions,
       createdDate: todayStr,
       updatedDate: todayStr,
@@ -517,12 +630,12 @@ export const userHandlers = [
     return HttpResponse.json(newUser, { status: 201 });
   }),
 
-  // 6. PUT /api/users/:id (Update User - ADMIN Only)
+  // 6. PUT /api/users/:id (Update User - SUPER_ADMIN & ADMIN Only)
   http.put('*/api/users/:id', async ({ params, request }) => {
     await delay(200);
     const currentUser = mockStore.getCurrentMockUser();
 
-    if (!currentUser.permissions.includes('user.manage') && currentUser.role !== 'ADMIN') {
+    if (currentUser.role === 'MEMBER' || !currentUser.permissions.includes('user.manage')) {
       return HttpResponse.json(
         { status: 403, error: 'Forbidden', message: 'Access denied.' },
         { status: 403 }
@@ -542,6 +655,44 @@ export const userHandlers = [
     const body = (await request.json()) as UpdateUserDTO;
     const existing = mockStore.users[index];
 
+    // Security Rule: Super Admin account cannot be deactivated or changed
+    if (existing.role === 'SUPER_ADMIN') {
+      return HttpResponse.json(
+        {
+          status: 409,
+          error: 'Conflict',
+          message: 'The Super Admin account cannot be deactivated or changed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Security Rule: Super Admin role cannot be assigned to another user
+    if (body.role === 'SUPER_ADMIN') {
+      return HttpResponse.json(
+        {
+          status: 409,
+          error: 'Conflict',
+          message: 'The Super Admin account cannot be assigned or changed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Role Scoping: ADMIN can edit ONLY members assigned to them
+    if (currentUser.role === 'ADMIN') {
+      if (existing.role !== 'MEMBER' || existing.managerId !== currentUser.id) {
+        return HttpResponse.json(
+          {
+            status: 403,
+            error: 'Forbidden',
+            message: 'You can only edit members assigned to you.',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // Business Rule 1: Self-deactivation forbidden (409 Conflict)
     if (currentUser.id === id && body.status === 'INACTIVE') {
       return HttpResponse.json(
@@ -552,28 +703,6 @@ export const userHandlers = [
         },
         { status: 409 }
       );
-    }
-
-    // Business Rule 2: Last active Admin protection (409 Conflict)
-    const activeAdmins = mockStore.users.filter(
-      (u) => u.status === 'ACTIVE' && u.role === 'ADMIN'
-    );
-    const isTargetOnlyAdmin = activeAdmins.length === 1 && activeAdmins[0].id === id;
-
-    if (isTargetOnlyAdmin) {
-      const isDemotingOrDeactivating =
-        body.status === 'INACTIVE' || body.role !== 'ADMIN';
-
-      if (isDemotingOrDeactivating) {
-        return HttpResponse.json(
-          {
-            status: 409,
-            error: 'Conflict',
-            message: 'Cannot deactivate or demote the only active Administrator in the system.',
-          },
-          { status: 409 }
-        );
-      }
     }
 
     const errors: FieldValidationError[] = [];
@@ -599,26 +728,52 @@ export const userHandlers = [
     if (!body.username || !body.username.trim()) {
       errors.push({ field: 'username', message: 'Username is required' });
     } else {
-      const username = body.username.trim();
+      const username = body.username.trim().toLowerCase();
       const duplicateUsername = mockStore.users.some(
-        (u) => u.id !== id && u.username.toLowerCase() === username.toLowerCase()
+        (u) => u.id !== id && u.username.toLowerCase() === username
       );
       if (duplicateUsername) {
-        errors.push({ field: 'username', message: `Username '${username}' is already in use` });
+        return HttpResponse.json(
+          {
+            status: 409,
+            error: 'Conflict',
+            message: `Username '${username}' is already in use by another account.`,
+          },
+          { status: 409 }
+        );
       }
     }
 
-    if (!body.role || !['ADMIN', 'MEMBER', 'VIEWER'].includes(body.role)) {
-      errors.push({ field: 'role', message: 'Valid role is required (ADMIN, MEMBER, VIEWER)' });
+    if (!body.role || !['ADMIN', 'MEMBER'].includes(body.role)) {
+      errors.push({ field: 'role', message: 'Valid role is required (ADMIN, MEMBER)' });
     }
 
     if (!body.status || !['ACTIVE', 'INACTIVE'].includes(body.status)) {
       errors.push({ field: 'status', message: 'Valid status is required (ACTIVE, INACTIVE)' });
     }
 
-    const emailErr = validateEmailFormat(body.email);
-    if (emailErr) {
-      errors.push({ field: 'email', message: emailErr });
+    if (!body.email || !body.email.trim()) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else {
+      const emailErr = validateEmailFormat(body.email);
+      if (emailErr) {
+        errors.push({ field: 'email', message: emailErr });
+      } else {
+        const emailTrimmed = body.email.trim().toLowerCase();
+        const duplicateEmail = mockStore.users.some(
+          (u) => u.id !== id && u.email && u.email.toLowerCase() === emailTrimmed
+        );
+        if (duplicateEmail) {
+          return HttpResponse.json(
+            {
+              status: 409,
+              error: 'Conflict',
+              message: `Email '${emailTrimmed}' is already in use by another account.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const phoneErr = validatePhoneFormat(body.phone);
@@ -638,6 +793,17 @@ export const userHandlers = [
       );
     }
 
+    let assignedManagerId = existing.managerId;
+    let assignedManagerName = existing.managerName;
+    if (body.role === 'ADMIN') {
+      assignedManagerId = null;
+      assignedManagerName = null;
+    } else if (body.role === 'MEMBER' && currentUser.role === 'SUPER_ADMIN' && body.managerId !== undefined) {
+      assignedManagerId = body.managerId;
+      const mgr = assignedManagerId ? mockStore.users.find((u) => u.id === assignedManagerId) : null;
+      assignedManagerName = mgr ? mgr.name : null;
+    }
+
     const todayStr = getTodayDateStr();
     const updatedUser: User = {
       ...existing,
@@ -646,10 +812,11 @@ export const userHandlers = [
       username: body.username.trim().toLowerCase(),
       role: body.role,
       status: body.status,
-      email: body.email && body.email.trim() ? body.email.trim().toLowerCase() : null,
+      email: body.email.trim().toLowerCase(),
       phone: body.phone && body.phone.trim() ? body.phone.trim() : null,
-      // Admin cannot upload or change another person's photo; preserve existing photoUrl
       photoUrl: existing.photoUrl ?? null,
+      managerId: assignedManagerId,
+      managerName: assignedManagerName,
       permissions: [...ROLE_PRESET_PERMISSIONS[body.role]],
       updatedDate: todayStr,
     };
@@ -658,12 +825,12 @@ export const userHandlers = [
     return HttpResponse.json(updatedUser, { status: 200 });
   }),
 
-  // 7. PATCH /api/users/:id/status (Quick Activate/Deactivate - ADMIN Only)
+  // 7. PATCH /api/users/:id/status (Quick Activate/Deactivate - SUPER_ADMIN & ADMIN Only)
   http.patch('*/api/users/:id/status', async ({ params, request }) => {
     await delay(150);
     const currentUser = mockStore.getCurrentMockUser();
 
-    if (!currentUser.permissions.includes('user.manage') && currentUser.role !== 'ADMIN') {
+    if (currentUser.role === 'MEMBER' || !currentUser.permissions.includes('user.manage')) {
       return HttpResponse.json(
         { status: 403, error: 'Forbidden', message: 'Access denied.' },
         { status: 403 }
@@ -683,6 +850,32 @@ export const userHandlers = [
     const body = (await request.json()) as { status: UserStatus };
     const existing = mockStore.users[index];
 
+    // Security Rule: Super Admin account cannot be deactivated or changed
+    if (existing.role === 'SUPER_ADMIN') {
+      return HttpResponse.json(
+        {
+          status: 409,
+          error: 'Conflict',
+          message: 'The Super Admin account cannot be deactivated or changed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Role Scoping: ADMIN can change status ONLY for members assigned to them
+    if (currentUser.role === 'ADMIN') {
+      if (existing.role !== 'MEMBER' || existing.managerId !== currentUser.id) {
+        return HttpResponse.json(
+          {
+            status: 403,
+            error: 'Forbidden',
+            message: 'You can only change status of members assigned to you.',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // Business Rule 1: Self-deactivation forbidden (409 Conflict)
     if (currentUser.id === id && body.status === 'INACTIVE') {
       return HttpResponse.json(
@@ -690,23 +883,6 @@ export const userHandlers = [
           status: 409,
           error: 'Conflict',
           message: 'You cannot deactivate your own active account.',
-        },
-        { status: 409 }
-      );
-    }
-
-    // Business Rule 2: Last active Admin protection (409 Conflict)
-    const activeAdmins = mockStore.users.filter(
-      (u) => u.status === 'ACTIVE' && u.role === 'ADMIN'
-    );
-    const isTargetOnlyAdmin = activeAdmins.length === 1 && activeAdmins[0].id === id;
-
-    if (isTargetOnlyAdmin && body.status === 'INACTIVE') {
-      return HttpResponse.json(
-        {
-          status: 409,
-          error: 'Conflict',
-          message: 'Cannot deactivate or demote the only active Administrator in the system.',
         },
         { status: 409 }
       );
@@ -734,12 +910,12 @@ export const userHandlers = [
     return HttpResponse.json(updatedUser, { status: 200 });
   }),
 
-  // 7. POST /api/users/:id/reset-password (ADMIN Only)
+  // 8. POST /api/users/:id/reset-password (SUPER_ADMIN & ADMIN Only)
   http.post('*/api/users/:id/reset-password', async ({ params, request }) => {
     await delay(150);
     const currentUser = mockStore.getCurrentMockUser();
 
-    if (!currentUser.permissions.includes('user.manage') && currentUser.role !== 'ADMIN') {
+    if (currentUser.role === 'MEMBER' || !currentUser.permissions.includes('user.manage')) {
       return HttpResponse.json(
         { status: 403, error: 'Forbidden', message: 'Access denied.' },
         { status: 403 }
@@ -753,6 +929,30 @@ export const userHandlers = [
       return HttpResponse.json(
         { status: 404, error: 'Not Found', message: `User with id '${id}' not found.` },
         { status: 404 }
+      );
+    }
+
+    // Security Rule: Super Admin password cannot be reset by other users
+    if (user.role === 'SUPER_ADMIN' && currentUser.id !== user.id) {
+      return HttpResponse.json(
+        {
+          status: 409,
+          error: 'Conflict',
+          message: 'The Super Admin account cannot be deactivated or changed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Role Scoping: ADMIN can reset password ONLY for members assigned to them
+    if (currentUser.role === 'ADMIN' && (user.role !== 'MEMBER' || user.managerId !== currentUser.id)) {
+      return HttpResponse.json(
+        {
+          status: 403,
+          error: 'Forbidden',
+          message: 'You can only reset passwords for members assigned to you.',
+        },
+        { status: 403 }
       );
     }
 

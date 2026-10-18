@@ -9,6 +9,12 @@ interface UserRoleBadgeProps {
 export const UserRoleBadge: React.FC<UserRoleBadgeProps> = ({ role, className = '' }) => {
   const getBadgeStyle = () => {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return {
+          backgroundColor: 'var(--sidebar)',
+          color: 'var(--sidebar-selected)',
+          boxShadow: '0 0 0 1px var(--sidebar-selected) inset',
+        };
       case 'ADMIN':
         return {
           backgroundColor: 'var(--sidebar)',
@@ -18,11 +24,6 @@ export const UserRoleBadge: React.FC<UserRoleBadgeProps> = ({ role, className = 
         return {
           backgroundColor: 'var(--status-info-bg)',
           color: 'var(--status-info-text)',
-        };
-      case 'VIEWER':
-        return {
-          backgroundColor: 'var(--relationship-cold-bg)',
-          color: 'var(--relationship-cold-text)',
         };
       default:
         return {
@@ -37,7 +38,7 @@ export const UserRoleBadge: React.FC<UserRoleBadgeProps> = ({ role, className = 
       style={getBadgeStyle()}
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold tracking-wider uppercase ${className}`}
     >
-      {role}
+      {role.replace('_', ' ')}
     </span>
   );
 };

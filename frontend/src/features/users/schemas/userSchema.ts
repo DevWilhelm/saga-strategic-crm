@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES, USER_STATUSES } from '../../../constants/users';
+import { USER_STATUSES } from '../../../constants/users';
 
 /**
  * SECURITY RULES:
@@ -13,13 +13,10 @@ const PHONE_CHARS_REGEX = /^[0-9+\-() ]+$/;
 
 export const emailFieldSchema = z
   .string()
+  .trim()
+  .min(1, 'Email is required')
   .max(254, 'Email must not exceed 254 characters')
-  .refine(
-    (val) => !val || !val.trim() || EMAIL_REGEX.test(val.trim()),
-    'Please enter a valid email address'
-  )
-  .optional()
-  .nullable();
+  .regex(EMAIL_REGEX, 'Please enter a valid email address');
 
 export const phoneFieldSchema = z
   .string()
@@ -40,6 +37,7 @@ export const phoneFieldSchema = z
 export const userSchema = z.object({
   name: z
     .string()
+    .trim()
     .min(1, 'Full name is required')
     .max(100, 'Full name must not exceed 100 characters'),
   code: z
@@ -48,10 +46,11 @@ export const userSchema = z.object({
     .optional(),
   username: z
     .string()
+    .trim()
     .min(3, 'Username must be at least 3 characters')
     .max(50, 'Username must not exceed 50 characters')
     .regex(/^[a-zA-Z0-9._]+$/, 'Username may only contain alphanumeric characters, dots, and underscores'),
-  role: z.enum(USER_ROLES, {
+  role: z.enum(['ADMIN', 'MEMBER'], {
     message: 'Please select a valid user role',
   }),
   status: z.enum(USER_STATUSES, {
@@ -59,6 +58,7 @@ export const userSchema = z.object({
   }),
   email: emailFieldSchema,
   phone: phoneFieldSchema,
+  managerId: z.string().nullable().optional(),
   password: z.string().optional(),
   confirmPassword: z.string().optional(),
 });

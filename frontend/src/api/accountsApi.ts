@@ -8,6 +8,8 @@ import type {
   UpdateAccountDTO,
   AccountNote,
   AccountDeal,
+  AccountImportPayload,
+  AccountImportResponse,
 } from '../types/account';
 import type { AccountLookups } from '../types/lookup';
 import type { AccountContact } from '../types/contact';
@@ -80,6 +82,47 @@ export const accountsApi = {
   // 7. GET /api/accounts/lookups
   getAccountLookups: async (): Promise<AccountLookups> => {
     const response = await apiClient.get<AccountLookups>('/accounts/lookups');
+    return response.data;
+  },
+
+  // 8. GET /api/accounts/export (All rows matching active filters & sort)
+  exportAccounts: async (
+    filters: AccountFilters = {},
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const params = new URLSearchParams();
+    if (filters.q) params.set('q', filters.q);
+    if (filters.businessLine) params.set('businessLine', filters.businessLine);
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.subCategoryId) params.set('subCategoryId', filters.subCategoryId);
+    if (filters.serviceId) params.set('serviceId', filters.serviceId);
+    if (filters.tier) params.set('tier', filters.tier);
+    if (filters.dealSide) params.set('dealSide', filters.dealSide);
+    if (filters.ownerId) params.set('ownerId', filters.ownerId);
+    if (filters.country) params.set('country', filters.country);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.sort) params.set('sort', filters.sort);
+    params.set('format', format);
+
+    const response = await apiClient.get('/accounts/export', {
+      params,
+      responseType: 'blob',
+    });
+
+    const contentDisposition = (response.headers['content-disposition'] as string) || '';
+    const match = /filename=["']?([^"';]+)["']?/.exec(contentDisposition);
+    const filename = match
+      ? match[1]
+      : `accounts-${new Date().toISOString().slice(0, 10)}.${format}`;
+
+    return { blob: response.data as Blob, filename };
+  },
+
+  // 9. POST /api/accounts/import (Validate or Commit spreadsheet rows)
+  importAccounts: async (
+    payload: AccountImportPayload
+  ): Promise<AccountImportResponse> => {
+    const response = await apiClient.post<AccountImportResponse>('/accounts/import', payload);
     return response.data;
   },
 };

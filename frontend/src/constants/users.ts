@@ -1,5 +1,4 @@
-// TODO: roles and sign-in method (Microsoft Entra ID vs local password) to be confirmed by the team
-export const USER_ROLES = ['ADMIN', 'MEMBER', 'VIEWER'] as const;
+export const USER_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MEMBER'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
@@ -51,7 +50,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     action: 'account.edit',
     category: 'Accounts',
     label: 'Edit Accounts',
-    description: 'Modify company details (Admins can edit any; Members can edit accounts they own).',
+    description: 'Modify company details (Super Admins and Admins can edit any; Members can edit accounts they own).',
   },
   {
     action: 'account.reassignOwner',
@@ -93,11 +92,24 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     action: 'user.manage',
     category: 'Administration',
     label: 'Manage Users & Permissions',
-    description: 'Create, update, activate/deactivate users, reset passwords, and customize permissions.',
+    description: 'Create, update, activate/deactivate users, reset passwords, and manage team members.',
   },
 ];
 
 export const ROLE_PRESET_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
+  SUPER_ADMIN: [
+    'dashboard.view',
+    'accounts.view',
+    'account.create',
+    'account.edit',
+    'account.reassignOwner',
+    'account.import',
+    'account.template',
+    'account.export',
+    'contacts.view',
+    'lookup.manage',
+    'user.manage',
+  ],
   ADMIN: [
     'dashboard.view',
     'accounts.view',
@@ -119,12 +131,6 @@ export const ROLE_PRESET_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'account.import',
     'account.template',
     'account.export',
-    'contacts.view',
-  ],
-  VIEWER: [
-    // VIEWER sees none of the three import/template/export buttons (comment: export policy TBD with the team)
-    'dashboard.view',
-    'accounts.view',
     'contacts.view',
   ],
 };

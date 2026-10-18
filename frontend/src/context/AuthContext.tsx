@@ -33,20 +33,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data);
     } catch (error) {
       console.error('Failed to load authenticated user profile from /api/me:', error);
-      // Fallback default admin profile in mock environment
+      // Fallback default super admin profile in mock environment
       setUser({
-        id: 'usr-ploy',
-        name: 'Ploy S.',
-        code: 'PS',
-        username: 'ploy.s',
-        role: 'ADMIN',
+        id: 'usr-super',
+        name: 'Alex Mercer',
+        code: 'AM',
+        username: 'alex.mercer',
+        role: 'SUPER_ADMIN',
         status: 'ACTIVE',
+        email: 'alex.mercer@crm.saga.com',
+        phone: '+66 80 123 4567',
+        photoUrl: null,
+        managerId: null,
+        managerName: null,
         permissions: [
           'dashboard.view',
           'accounts.view',
           'account.create',
           'account.edit',
           'account.reassignOwner',
+          'account.import',
+          'account.template',
+          'account.export',
           'contacts.view',
           'lookup.manage',
           'user.manage',
@@ -71,18 +79,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Failed to load authenticated user profile from /api/me:', error);
         if (!ignore) {
           setUser({
-            id: 'usr-ploy',
-            name: 'Ploy S.',
-            code: 'PS',
-            username: 'ploy.s',
-            role: 'ADMIN',
+            id: 'usr-super',
+            name: 'Alex Mercer',
+            code: 'AM',
+            username: 'alex.mercer',
+            role: 'SUPER_ADMIN',
             status: 'ACTIVE',
+            email: 'alex.mercer@crm.saga.com',
+            phone: '+66 80 123 4567',
+            photoUrl: null,
+            managerId: null,
+            managerName: null,
             permissions: [
               'dashboard.view',
               'accounts.view',
               'account.create',
               'account.edit',
               'account.reassignOwner',
+              'account.import',
+              'account.template',
+              'account.export',
               'contacts.view',
               'lookup.manage',
               'user.manage',
