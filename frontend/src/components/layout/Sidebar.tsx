@@ -8,8 +8,11 @@ import {
   Clock,
   X,
   BriefcaseBusiness,
+  UserCog,
 } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '../../constants/app';
+import { usePermissions } from '../../auth/permissions';
+import type { PermissionAction } from '../../constants/users';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -20,17 +23,25 @@ interface NavItem {
   name: string;
   to: string;
   icon: React.ComponentType<{ className?: string }>;
+  requiredAction?: PermissionAction;
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { name: 'Accounts', to: '/accounts', icon: Building2 },
   { name: 'Contacts', to: '/contacts', icon: Users },
   { name: 'Pipeline', to: '/pipeline', icon: TrendingUp },
   { name: 'Follow-ups', to: '/follow-ups', icon: Clock },
+  { name: 'Users', to: '/users', icon: UserCog, requiredAction: 'user.manage' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const { can } = usePermissions();
+
+  const navItems = baseNavItems.filter((item) => {
+    if (!item.requiredAction) return true;
+    return can(item.requiredAction);
+  });
   return (
     <>
       {/* Mobile backdrop */}

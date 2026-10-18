@@ -6,6 +6,8 @@ import { Save, AlertCircle, Loader2 } from 'lucide-react';
 import { accountSchema, type AccountFormValues } from '../schemas/accountSchema';
 import { useAccountLookups, useSaveAccount } from '../hooks/useAccounts';
 import type { AccountDetail, BusinessLine, Tier, DealSide, AccountStatus } from '../../../types/account';
+import { useAuth } from '../../../context/AuthContext';
+import { usePermissions } from '../../../auth/permissions';
 
 interface AccountFormProps {
   initialData?: AccountDetail;
@@ -16,6 +18,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({ initialData, isEdit = 
   const navigate = useNavigate();
   const { data: lookups } = useAccountLookups();
   const saveMutation = useSaveAccount();
+  const { user } = useAuth();
+  const { can } = usePermissions();
+  const canReassignOwner = can('account.reassignOwner');
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
 
   const {
@@ -34,7 +39,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ initialData, isEdit = 
       subCategoryId: initialData?.subCategoryId || '',
       serviceId: initialData?.serviceId || '',
       tier: (initialData?.tier as Tier) || 'TIER_1',
-      ownerId: initialData?.ownerId || '',
+      ownerId: initialData?.ownerId || (!canReassignOwner && user?.id ? user.id : ''),
       status: (initialData?.status as AccountStatus) || 'ACTIVE',
       dealSide: (initialData?.dealSide as DealSide) || null,
       country: initialData?.country || 'Thailand',
@@ -77,9 +82,14 @@ export const AccountForm: React.FC<AccountFormProps> = ({ initialData, isEdit = 
     setServerErrors({});
 
     try {
+      const submissionData: AccountFormValues = {
+        ...values,
+        ownerId: !canReassignOwner ? (initialData?.ownerId || user?.id || values.ownerId) : values.ownerId,
+      };
+
       const savedAccount = await saveMutation.mutateAsync({
         id: isEdit ? initialData?.id : undefined,
-        data: values,
+        data: submissionData,
       });
 
       // Navigate to detail page on success
@@ -322,12 +332,15 @@ export const AccountForm: React.FC<AccountFormProps> = ({ initialData, isEdit = 
             </label>
             <select
               {...register('ownerId')}
+              disabled={!canReassignOwner}
               style={{
                 borderColor: errors.ownerId || serverErrors.ownerId ? 'var(--status-overdue-text)' : 'var(--border)',
-                backgroundColor: 'var(--background)',
+                backgroundColor: !canReassignOwner ? 'var(--table-header-bg)' : 'var(--background)',
                 color: 'var(--text)',
+                opacity: !canReassignOwner ? 0.85 : 1,
+                cursor: !canReassignOwner ? 'not-allowed' : 'pointer',
               }}
-              className="w-full px-3.5 py-2 text-sm rounded-lg border outline-none cursor-pointer"
+              className="w-full px-3.5 py-2 text-sm rounded-lg border outline-none"
             >
               <option value="">Select Owner...</option>
               {lookups?.owners.map((owner) => (
@@ -336,6 +349,11 @@ export const AccountForm: React.FC<AccountFormProps> = ({ initialData, isEdit = 
                 </option>
               ))}
             </select>
+            {!canReassignOwner && (
+              <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-1">
+                Account owner assignment can only be reallocated by administrators.
+              </p>
+            )}
             {errors.ownerId && (
               <p style={{ color: 'var(--status-overdue-text)' }} className="text-xs mt-1">
                 {errors.ownerId.message}

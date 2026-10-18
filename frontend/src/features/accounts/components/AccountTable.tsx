@@ -6,6 +6,7 @@ import { TierBadge } from './TierBadge';
 import { StatusBadge } from './StatusBadge';
 import { BusinessLineDot } from './BusinessLineDot';
 import { FollowUpDateBadge } from './FollowUpDateBadge';
+import { usePermissions } from '../../../auth/permissions';
 
 interface AccountTableProps {
   accounts: AccountListItem[];
@@ -28,6 +29,7 @@ export const AccountTable: React.FC<AccountTableProps> = ({
   onSizeChange,
   onSortChange,
 }) => {
+  const { can } = usePermissions();
   const [currentField = 'updatedDate', currentDirection = 'desc'] = sort.split(',');
 
   const handleSort = (field: string) => {
@@ -225,18 +227,20 @@ export const AccountTable: React.FC<AccountTableProps> = ({
                     >
                       <Eye className="w-3.5 h-3.5" />
                     </Link>
-                    <Link
-                      to={`/accounts/${acc.id}/edit`}
-                      style={{
-                        backgroundColor: 'var(--btn-secondary-bg)',
-                        borderColor: 'var(--btn-secondary-border)',
-                        color: 'var(--text-secondary)',
-                      }}
-                      className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors"
-                      title="Edit Account"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </Link>
+                    {can('account.edit', { ownerId: acc.ownerId }) && (
+                      <Link
+                        to={`/accounts/${acc.id}/edit`}
+                        style={{
+                          backgroundColor: 'var(--btn-secondary-bg)',
+                          borderColor: 'var(--btn-secondary-border)',
+                          color: 'var(--text-secondary)',
+                        }}
+                        className="p-1.5 rounded-md border hover:bg-slate-100 transition-colors"
+                        title="Edit Account"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 </td>
               </tr>

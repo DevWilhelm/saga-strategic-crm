@@ -1,6 +1,8 @@
 import type { Account, AccountNote, AccountDeal, BusinessLine, Tier, DealSide, AccountStatus } from '../types/account';
-import type { Category, SubCategory, Service, User } from '../types/lookup';
+import type { Category, SubCategory, Service } from '../types/lookup';
+import type { User } from '../types/user';
 import type { AccountContact, AccountFollowUp } from '../types/contact';
+import { ROLE_PRESET_PERMISSIONS } from '../constants/users';
 
 // ==========================================
 // 1. LOOKUP DATA
@@ -36,16 +38,108 @@ export const MOCK_SERVICES: Service[] = [
 ];
 
 /**
- * The USER table also has username and password, but they are NEVER part of any frontend
- * type, mock, form or response: this module only needs users as owners and audit attribution.
+ * Seed Users with roles, initials codes, and granular permissions.
+ * Passwords exist exclusively in request DTOs and are simulated in an internal map.
  */
 export const MOCK_USERS: User[] = [
-  { id: 'usr-ploy', name: 'Ploy S.', code: 'PS' },
-  { id: 'usr-1', name: 'Sarah Jenkins', code: 'SJ' },
-  { id: 'usr-2', name: 'Michael Chang', code: 'MC' },
-  { id: 'usr-3', name: 'Elena Rostova', code: 'ER' },
-  { id: 'usr-4', name: 'David Adeleke', code: 'DA' },
-  { id: 'usr-5', name: 'Sophia Patel', code: 'SP' },
+  {
+    id: 'usr-ploy',
+    name: 'Ploy S.',
+    code: 'PS',
+    username: 'ploy.s',
+    role: 'ADMIN',
+    status: 'ACTIVE',
+    email: 'ploy.s@saga-consulting.com',
+    phone: '+66 81 234 5678',
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.ADMIN],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-14',
+  },
+  {
+    id: 'usr-1',
+    name: 'Sarah Jenkins',
+    code: 'SJ',
+    username: 'sarah.j',
+    role: 'MEMBER',
+    status: 'ACTIVE',
+    email: 'sarah.j@saga-consulting.com',
+    phone: '+66 82 345 6789',
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.MEMBER],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-12',
+  },
+  {
+    id: 'usr-2',
+    name: 'Michael Chang',
+    code: 'MC',
+    username: 'michael.c',
+    role: 'MEMBER',
+    status: 'ACTIVE',
+    email: 'michael.c@saga-consulting.com',
+    phone: '+66 83 456 7890',
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.MEMBER],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-11',
+  },
+  {
+    id: 'usr-3',
+    name: 'Elena Rostova',
+    code: 'ER',
+    username: 'elena.r',
+    role: 'MEMBER',
+    status: 'ACTIVE',
+    email: 'elena.r@saga-consulting.com',
+    phone: '+66 84 567 8901',
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.MEMBER],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-09',
+  },
+  {
+    id: 'usr-4',
+    name: 'David Adeleke',
+    code: 'DA',
+    username: 'david.a',
+    role: 'MEMBER',
+    status: 'ACTIVE',
+    email: 'david.a@saga-consulting.com',
+    phone: null,
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.MEMBER],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-05',
+  },
+  {
+    id: 'usr-5',
+    name: 'Sophia Patel',
+    code: 'SP',
+    username: 'sophia.p',
+    role: 'VIEWER',
+    status: 'ACTIVE',
+    email: null,
+    phone: '+66 86 789 0123',
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.VIEWER],
+    createdDate: '2026-06-01',
+    updatedDate: '2026-10-08',
+  },
+  {
+    id: 'usr-inactive',
+    name: 'Alex Thorne',
+    code: 'AT',
+    username: 'alex.t',
+    role: 'MEMBER',
+    status: 'INACTIVE',
+    email: 'alex.t@saga-consulting.com',
+    phone: null,
+    photoUrl: null,
+    permissions: [...ROLE_PRESET_PERMISSIONS.MEMBER],
+    createdDate: '2026-05-15',
+    updatedDate: '2026-09-30',
+  },
 ];
 
 export const MOCK_COUNTRIES: string[] = [
@@ -571,6 +665,14 @@ export const INITIAL_DEALS: AccountDeal[] = [
 // 6. SHARED IN-MEMORY MOCK STORE INSTANCE
 // ==========================================
 
+/**
+ * ARCHITECTURAL NOTE ON PROFILE PHOTOS:
+ * In a production deployment, profile photos are uploaded to cloud object storage (e.g., Azure Blob Storage / AWS S3)
+ * via multipart/form-data. The database and API responses store and return a CDN/blob URL string (photoUrl),
+ * NEVER raw base64 data inside JSON payloads.
+ * In this mock environment, uploaded photos are converted to in-memory blob/data URLs to simulate realistic
+ * image URL rendering and clean network transfers.
+ */
 class MockStore {
   accounts: Account[] = [...INITIAL_ACCOUNTS];
   contacts: AccountContact[] = [...INITIAL_CONTACTS];
@@ -584,12 +686,51 @@ class MockStore {
   users: User[] = [...MOCK_USERS];
   countries: string[] = [...MOCK_COUNTRIES];
 
+  // Internal simulated password map for dev mock verification (never returned)
+  private passwords: Map<string, string> = new Map([
+    ['usr-ploy', 'Password123!'],
+    ['usr-1', 'Password123!'],
+    ['usr-2', 'Password123!'],
+    ['usr-3', 'Password123!'],
+    ['usr-4', 'Password123!'],
+    ['usr-5', 'Password123!'],
+    ['usr-inactive', 'Password123!'],
+  ]);
+
+  verifyPassword(userId: string, pass: string): boolean {
+    const stored = this.passwords.get(userId) || 'Password123!';
+    return stored === pass;
+  }
+
+  setPassword(userId: string, newPass: string): void {
+    this.passwords.set(userId, newPass);
+  }
+
+  getCurrentMockUserId(): string {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      return window.sessionStorage.getItem('dev_mock_user_id') || 'usr-ploy';
+    }
+    return 'usr-ploy';
+  }
+
+  setCurrentMockUserId(id: string): void {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem('dev_mock_user_id', id);
+    }
+  }
+
+  getCurrentMockUser(): User {
+    const currentId = this.getCurrentMockUserId();
+    return this.users.find((u) => u.id === currentId) || this.users[0];
+  }
+
   reset() {
     this.accounts = [...INITIAL_ACCOUNTS];
     this.contacts = [...INITIAL_CONTACTS];
     this.followUps = [...INITIAL_FOLLOW_UPS];
     this.notes = [...INITIAL_NOTES];
     this.deals = [...INITIAL_DEALS];
+    this.users = [...MOCK_USERS];
   }
 }
 

@@ -1,14 +1,14 @@
 import React from 'react';
 import { AlertCircle, RefreshCw, FolderSearch } from 'lucide-react';
 
-interface ErrorStateProps {
+export interface ErrorStateProps {
   message?: string;
   onRetry?: () => void;
   className?: string;
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
-  message = 'Failed to load data.',
+  message = 'Failed to load content.',
   onRetry,
   className = '',
 }) => {
@@ -19,7 +19,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         borderColor: 'var(--border)',
         color: 'var(--text)',
       }}
-      className={`flex flex-col items-center justify-center p-8 rounded-lg border text-center ${className}`}
+      className={`flex flex-col items-center justify-center p-8 rounded-xl border text-center ${className}`}
     >
       <div
         style={{
@@ -31,7 +31,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         <AlertCircle className="w-6 h-6" />
       </div>
       <p style={{ color: 'var(--text)' }} className="text-base font-semibold mb-1">
-        Error Loading Content
+        Unable to Load Content
       </p>
       <p style={{ color: 'var(--text-secondary)' }} className="text-sm max-w-md mb-4">
         {message}
@@ -44,7 +44,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
             backgroundColor: 'var(--btn-primary)',
             color: 'var(--btn-primary-text)',
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-opacity hover:opacity-90 cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-opacity hover:opacity-90 cursor-pointer shadow-xs"
         >
           <RefreshCw className="w-4 h-4" />
           Retry
@@ -54,7 +54,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   );
 };
 
-interface EmptyStateProps {
+export interface EmptyStateProps {
   title?: string;
   description?: string;
   actionLabel?: string;
@@ -75,7 +75,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         backgroundColor: 'var(--surface)',
         borderColor: 'var(--border)',
       }}
-      className={`flex flex-col items-center justify-center p-12 rounded-lg border text-center ${className}`}
+      className={`flex flex-col items-center justify-center p-12 rounded-xl border text-center ${className}`}
     >
       <div
         style={{

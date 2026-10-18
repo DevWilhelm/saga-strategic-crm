@@ -3,7 +3,7 @@ import { Mail, UserCheck } from 'lucide-react';
 import { useAccountContacts } from '../hooks/useAccounts';
 import { TierBadge } from './TierBadge';
 import { FollowUpDateBadge } from './FollowUpDateBadge';
-import { LoadingSkeleton, EmptyState, ErrorState } from './WidgetState';
+import { LoadingSkeleton, EmptyState, ErrorState } from '../../../components/common/WidgetState';
 
 interface AccountContactsTabProps {
   accountId: string;

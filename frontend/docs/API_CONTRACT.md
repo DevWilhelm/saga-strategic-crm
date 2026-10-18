@@ -321,3 +321,334 @@ Whenever a request fails client-side or server-side schema constraints (HTTP 400
 }
 ```
 The React frontend maps each error item directly beneath its respective field input.
+
+---
+
+## 4. Users and Permissions Endpoints
+
+### 4.1 GET `/api/me`
+Retrieves the currently authenticated user's profile, contact details, and account status.
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "id": "usr-ploy",
+  "name": "Ploy S.",
+  "username": "ploy.s",
+  "code": "PS",
+  "role": "ADMIN",
+  "status": "ACTIVE",
+  "email": "ploy.s@saga-consulting.com",
+  "phone": "+66 81 234 5678",
+  "photoUrl": "https://saga-storage.blob.core.windows.net/avatars/usr-ploy.jpg"
+}
+```
+
+---
+
+### 4.2 PUT `/api/me`
+Self-service profile update allowed for all authenticated roles (`ADMIN`, `MEMBER`, `VIEWER`). Allows updating display name, email, and phone only.
+
+* **Security & Business Rules**:
+  * Request body contains **ONLY** `{ name, email, phone }` (`UpdateMyProfileDTO`).
+  * The server strictly ignores or rejects `username`, `code`, `role`, and `status`: a user can never alter their own credentials, initials code, or role (preventing privilege escalation) or status (preventing unauthorized self-reactivation) through this endpoint. Role and status management is strictly reserved for administrators via `/api/users/{id}`.
+  * Validation:
+    * `name`: required, maximum 100 characters.
+    * `email`: optional, valid email format, maximum 254 characters, stored lower-case. An empty string is stored as `null`.
+    * `phone`: optional, maximum 20 characters, digits, spaces, `+`, `-`, `(`, `)` allowed, minimum 7 digits. An empty string is stored as `null`.
+
+* **Request JSON**:
+```json
+{
+  "name": "Ploy Suvarnaprathip",
+  "email": "ploy.s@saga-consulting.com",
+  "phone": "+66 81 234 5678"
+}
+```
+
+* **Response JSON (`200 OK`)**: Returns updated `/api/me` user object.
+```json
+{
+  "id": "usr-ploy",
+  "name": "Ploy Suvarnaprathip",
+  "username": "ploy.s",
+  "code": "PS",
+  "role": "ADMIN",
+  "status": "ACTIVE",
+  "email": "ploy.s@saga-consulting.com",
+  "phone": "+66 81 234 5678",
+  "photoUrl": "https://saga-storage.blob.core.windows.net/avatars/usr-ploy.jpg"
+}
+```
+
+* **Error Response (`400 Bad Request`)**:
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed for profile payload",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Please enter a valid email address"
+    }
+  ]
+}
+```
+
+---
+
+### 4.3 POST `/api/me/photo`
+Self-service profile photo upload (`multipart/form-data`, form field name: `"file"`).
+
+* **Validation Rules**:
+  * Content-Type: `image/jpeg`, `image/png`, or `image/webp`.
+  * Max size: 2 MB (2,097,152 bytes).
+  * Aspect ratio: Square image (width equals height).
+  * Backend storage: In production, the file is saved to cloud object storage (e.g., Azure Blob Storage) and a permanent URL is stored in the database. `photoUrl` is ALWAYS a URL string, NEVER raw base64 inside JSON responses.
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "photoUrl": "https://saga-storage.blob.core.windows.net/avatars/usr-ploy.jpg"
+}
+```
+
+* **Error Response (`400 Bad Request`)**:
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Image must be square",
+  "errors": [
+    {
+      "field": "file",
+      "message": "Image must be square (width equals height)"
+    }
+  ]
+}
+```
+
+---
+
+### 4.4 DELETE `/api/me/photo`
+Self-service profile photo removal for the authenticated user. Sets `photoUrl` to `null`.
+
+* **Response**: `204 No Content`.
+
+---
+
+### 4.5 GET `/api/users`
+Paginated search and filter across users (requires `user.manage` permission). User items include `email`, `phone`, and `photoUrl`.
+
+* **Query Parameters**:
+  | Parameter | Type | Required | Default | Description |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `q` | `string` | No | `""` | Search on `name`, `username`, and `code`. |
+  | `role` | `string` | No | — | Filter by Role (`ADMIN`, `MEMBER`, `VIEWER`). |
+  | `status` | `string` | No | — | Filter by Status (`ACTIVE`, `INACTIVE`). |
+  | `page` | `integer` | No | `0` | 0-based page index. |
+  | `size` | `integer` | No | `10` | Page size (10, 20, 50). |
+  | `sort` | `string` | No | `name,asc` | Format `field,asc` or `field,desc`. Allowed fields: `name`, `updatedDate`. |
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "content": [
+    {
+      "id": "usr-ploy",
+      "name": "Ploy S.",
+      "code": "PS",
+      "username": "ploy.s",
+      "role": "ADMIN",
+      "status": "ACTIVE",
+      "email": "ploy.s@saga-consulting.com",
+      "phone": "+66 81 234 5678",
+      "photoUrl": null,
+      "permissions": [
+        "dashboard.view",
+        "accounts.view",
+        "account.create",
+        "account.edit",
+        "account.reassignOwner",
+        "contacts.view",
+        "lookup.manage",
+        "user.manage"
+      ],
+      "accountCount": 1,
+      "contactCount": 3,
+      "updatedDate": "2026-10-14"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 7,
+  "totalPages": 1
+}
+```
+
+---
+
+### 4.6 GET `/api/users/options`
+Retrieves ACTIVE users for populating ownership dropdowns. Exposes `id`, `name`, `code`, and `photoUrl` ONLY. Never exposes `email` or `phone`.
+
+* **Response JSON (`200 OK`)**:
+```json
+[
+  { "id": "usr-ploy", "name": "Ploy S.", "code": "PS", "photoUrl": null },
+  { "id": "usr-1", "name": "Sarah Jenkins", "code": "SJ", "photoUrl": null }
+]
+```
+
+---
+
+### 4.7 GET `/api/users/{id}`
+Retrieves full user detail by ID (requires `user.manage` permission).
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "id": "usr-1",
+  "name": "Sarah Jenkins",
+  "code": "SJ",
+  "username": "sarah.j",
+  "role": "MEMBER",
+  "status": "ACTIVE",
+  "email": "sarah.j@saga-consulting.com",
+  "phone": "+66 82 345 6789",
+  "photoUrl": null,
+  "permissions": [
+    "dashboard.view",
+    "accounts.view",
+    "account.create",
+    "account.edit",
+    "contacts.view"
+  ],
+  "accountCount": 27,
+  "contactCount": 14,
+  "createdDate": "2026-06-01",
+  "updatedDate": "2026-10-12"
+}
+```
+
+---
+
+### 4.8 POST `/api/users`
+Creates a new user profile with password, optional contact details, and role (requires `user.manage` permission). An administrator cannot upload or set another user's profile photo.
+
+* **Validation Rules**:
+  * `name`: required, max 100 characters.
+  * `code`: optional, max 20 characters, unique if provided.
+  * `username`: required, 3-50 characters, letters, numbers, dots, and underscores only, unique (case-insensitive).
+  * `password`: required, minimum 8 characters with at least one letter and one number.
+  * `email`: optional, max 254 characters, valid email format.
+  * `phone`: optional, max 20 characters, digits, spaces, `+`, `-`, `(`, `)` allowed, minimum 7 digits.
+  * `role`: required (`ADMIN`, `MEMBER`, `VIEWER`).
+  * `status`: default `ACTIVE`.
+  * `permissions`: array of permission action strings.
+
+* **Request JSON**:
+```json
+{
+  "name": "Daniel Thorne",
+  "code": "DT",
+  "username": "daniel.t",
+  "password": "Password123!",
+  "email": "daniel.t@saga-consulting.com",
+  "phone": "+66 89 123 4567",
+  "role": "MEMBER",
+  "status": "ACTIVE",
+  "permissions": [
+    "dashboard.view",
+    "accounts.view",
+    "account.create",
+    "account.edit",
+    "contacts.view"
+  ]
+}
+```
+* **Response JSON (`201 Created`)**: Returns created User object (without password).
+
+---
+
+### 4.9 PUT `/api/users/{id}`
+Full update of an existing user's profile, contact info, and assigned role (requires `user.manage` permission). An administrator cannot upload or change another user's profile photo.
+
+* **Validation Rules**:
+  * `name`: required, 1-100 characters.
+  * `code`: optional, max 20 characters, unique if provided.
+  * `username`: required, 3-50 characters, letters, numbers, dots, and underscores only, unique (case-insensitive).
+  * `email`: optional, max 254 characters, valid email format.
+  * `phone`: optional, max 20 characters, digits, spaces, `+`, `-`, `(`, `)` allowed, minimum 7 digits.
+  * `role`: required (`ADMIN`, `MEMBER`, `VIEWER`).
+  * `status`: required (`ACTIVE`, `INACTIVE`).
+
+* **Request JSON**:
+```json
+{
+  "name": "Daniel Thorne",
+  "code": "DT",
+  "username": "daniel.t",
+  "email": "daniel.t@saga-consulting.com",
+  "phone": "+66 89 123 4567",
+  "role": "MEMBER",
+  "status": "ACTIVE"
+}
+```
+* **Response JSON (`200 OK`)**: Returns updated User object.
+
+---
+
+### 4.10 PATCH `/api/users/{id}/status`
+Quick Activate / Deactivate status toggle action (requires `user.manage` permission).
+
+* **Validation Rules**:
+  * `status`: required, must be either `ACTIVE` or `INACTIVE`.
+  * Cannot deactivate your own active user account (returns `409 Conflict`).
+  * Cannot deactivate the last remaining active Administrator in the system (returns `409 Conflict`).
+
+* **Request JSON**:
+```json
+{
+  "status": "INACTIVE"
+}
+```
+* **Response JSON (`200 OK`)**: Returns updated User object with new status and updatedDate.
+
+---
+
+### 4.11 POST `/api/users/{id}/reset-password`
+Admin action to set a new password for a user without seeing the current password (requires `user.manage` permission).
+
+* **Request JSON**:
+```json
+{
+  "newPassword": "NewSecurePassword123!"
+}
+```
+* **Response**: `204 No Content`.
+
+---
+
+### 4.12 POST `/api/me/change-password`
+Self-service password update for any authenticated user.
+
+* **Request JSON**:
+```json
+{
+  "currentPassword": "Password123!",
+  "newPassword": "MyBrandNewPassword2026!"
+}
+```
+* **Response**: `204 No Content` or `400 Bad Request` with field error on `currentPassword` if incorrect.
+
+---
+
+### 4.13 Error Codes & Business Conflict Rules
+
+| Status | Code / Error | Condition | Example Response |
+|---|---|---|---|
+| `400` | Bad Request | Validation failures (e.g. invalid username regex, short password) | `{ "status": 400, "error": "Bad Request", "errors": [{ "field": "password", "message": "Password must be at least 8 characters long" }] }` |
+| `403` | Forbidden | User role lacks `user.manage` permission | `{ "status": 403, "error": "Forbidden", "message": "Access denied. You do not have permission to manage users." }` |
+| `409` | Conflict | Attempting to deactivate oneself (via PUT or PATCH status) | `{ "status": 409, "error": "Conflict", "message": "You cannot deactivate your own active account." }` |
+| `409` | Conflict | Attempting to deactivate or demote the last remaining active Admin (via PUT or PATCH status) | `{ "status": 409, "error": "Conflict", "message": "Cannot deactivate or demote the only active Administrator in the system." }` |

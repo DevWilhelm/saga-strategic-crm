@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquarePlus, Send, MessageCircle } from 'lucide-react';
 import { useAccountNotes, useAddAccountNote } from '../hooks/useAccounts';
-import { LoadingSkeleton, EmptyState, ErrorState } from './WidgetState';
+import { LoadingSkeleton, EmptyState, ErrorState } from '../../../components/common/WidgetState';
 
 interface AccountNotesTabProps {
   accountId: string;

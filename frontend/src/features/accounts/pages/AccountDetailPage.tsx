@@ -9,13 +9,15 @@ import { AccountOverviewCard } from '../components/AccountOverviewCard';
 import { AccountContactsTab } from '../components/AccountContactsTab';
 import { AccountNotesTab } from '../components/AccountNotesTab';
 import { AccountDealsTab } from '../components/AccountDealsTab';
-import { LoadingSkeleton, ErrorState } from '../components/WidgetState';
+import { LoadingSkeleton, ErrorState } from '../../../components/common/WidgetState';
+import { usePermissions } from '../../../auth/permissions';
 
 type TabKey = 'contacts' | 'notes' | 'deals';
 
 export const AccountDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('contacts');
+  const { can } = usePermissions();
 
   const { data: account, isLoading, isError, error, refetch } = useAccountDetail(id || '');
 
@@ -104,19 +106,21 @@ export const AccountDetailPage: React.FC = () => {
         </div>
 
         {/* Action Button: Edit */}
-        <div className="flex items-center gap-2">
-          <Link
-            to={`/accounts/${account.id}/edit`}
-            style={{
-              backgroundColor: 'var(--btn-primary)',
-              color: 'var(--btn-primary-text)',
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-95 transition-opacity"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Account
-          </Link>
-        </div>
+        {can('account.edit', { ownerId: account.ownerId }) && (
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/accounts/${account.id}/edit`}
+              style={{
+                backgroundColor: 'var(--btn-primary)',
+                color: 'var(--btn-primary-text)',
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-95 transition-opacity"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit Account
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Next Action Priority Card */}

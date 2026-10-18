@@ -7,6 +7,11 @@ import { AccountListPage } from './features/accounts/pages/AccountListPage';
 import { AccountDetailPage } from './features/accounts/pages/AccountDetailPage';
 import { AccountFormPage } from './features/accounts/pages/AccountFormPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { PermissionRoute } from './components/common/PermissionRoute';
+import { UserListPage } from './features/users/pages/UserListPage';
+import { UserFormPage } from './features/users/pages/UserFormPage';
+import { ProfilePage } from './features/users/pages/ProfilePage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +29,7 @@ export const App: React.FC = () => {
         <BrowserRouter>
           <Routes>
             <Route element={<DashboardLayout />}>
-              <Route path="/" element={<Navigate to="/accounts" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route
                 path="/dashboard"
                 element={
@@ -58,6 +63,31 @@ export const App: React.FC = () => {
                 }
               />
               <Route
+                path="/users"
+                element={
+                  <PermissionRoute action="user.manage">
+                    <UserListPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/users/new"
+                element={
+                  <PermissionRoute action="user.manage">
+                    <UserFormPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/users/:id/edit"
+                element={
+                  <PermissionRoute action="user.manage">
+                    <UserFormPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route
                 path="/follow-ups"
                 element={
                   <PlaceholderPage
@@ -66,7 +96,7 @@ export const App: React.FC = () => {
                   />
                 }
               />
-              <Route path="*" element={<Navigate to="/accounts" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

@@ -3,13 +3,30 @@ import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import { useAccountDetail } from '../hooks/useAccounts';
 import { AccountForm } from '../components/AccountForm';
-import { LoadingSkeleton, ErrorState } from '../components/WidgetState';
+import { LoadingSkeleton, ErrorState } from '../../../components/common/WidgetState';
+import { usePermissions } from '../../../auth/permissions';
+import { NoAccessPage } from '../../../components/common/NoAccessPage';
 
 export const AccountFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { can } = usePermissions();
 
   const { data: account, isLoading, isError, error, refetch } = useAccountDetail(id || '');
+
+  // Permission checks
+  if (!isEdit && !can('account.create')) {
+    return <NoAccessPage requiredAction="account.create" />;
+  }
+
+  if (isEdit && !isLoading && account && !can('account.edit', { ownerId: account.ownerId })) {
+    return (
+      <NoAccessPage
+        message="You do not have permission to edit this account. Members may only edit accounts they own."
+        requiredAction="account.edit"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">

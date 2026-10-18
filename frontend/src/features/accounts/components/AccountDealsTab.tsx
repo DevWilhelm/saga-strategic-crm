@@ -1,7 +1,7 @@
 import React from 'react';
 import { DollarSign, AlertCircle } from 'lucide-react';
 import { useAccountDeals } from '../hooks/useAccounts';
-import { LoadingSkeleton, EmptyState, ErrorState } from './WidgetState';
+import { LoadingSkeleton, EmptyState, ErrorState } from '../../../components/common/WidgetState';
 
 interface AccountDealsTabProps {
   accountId: string;

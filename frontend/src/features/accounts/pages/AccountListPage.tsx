@@ -5,7 +5,8 @@ import { useAccounts, useAccountLookups } from '../hooks/useAccounts';
 import type { AccountFilters } from '../../../types/account';
 import { AccountFiltersBar } from '../components/AccountFiltersBar';
 import { AccountTable } from '../components/AccountTable';
-import { LoadingSkeleton, EmptyState, ErrorState } from '../components/WidgetState';
+import { LoadingSkeleton, EmptyState, ErrorState } from '../../../components/common/WidgetState';
+import { Can } from '../../../auth/Can';
 
 export const AccountListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -82,19 +83,21 @@ export const AccountListPage: React.FC = () => {
         </div>
 
         {/* "+ New" Primary Button */}
-        <div>
-          <Link
-            to="/accounts/new"
-            style={{
-              backgroundColor: 'var(--btn-primary)',
-              color: 'var(--btn-primary-text)',
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-xs hover:opacity-95 transition-opacity"
-          >
-            <Plus className="w-4 h-4" />
-            + New
-          </Link>
-        </div>
+        <Can action="account.create">
+          <div>
+            <Link
+              to="/accounts/new"
+              style={{
+                backgroundColor: 'var(--btn-primary)',
+                color: 'var(--btn-primary-text)',
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-xs hover:opacity-95 transition-opacity"
+            >
+              <Plus className="w-4 h-4" />
+              + New
+            </Link>
+          </div>
+        </Can>
       </div>
 
       {/* Filter and Search Bar */}
