@@ -3,6 +3,7 @@ import { INITIAL_ACCOUNTS, INITIAL_CONTACTS } from './data';
 import { accountHandlers } from './handlers/accounts';
 import { userHandlers } from './handlers/users';
 import { authHandlers } from './handlers/auth';
+import { categoryHandlers } from './handlers/categories';
 import type {
   Account,
   Contact,
@@ -19,6 +20,7 @@ let contacts: Contact[] = [...INITIAL_CONTACTS];
 
 export const handlers = [
   ...authHandlers,
+  ...categoryHandlers,
   ...userHandlers,
   ...accountHandlers,
   // --- ACCOUNTS ENDPOINTS (/api/v1/accounts) ---

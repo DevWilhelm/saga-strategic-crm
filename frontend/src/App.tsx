@@ -14,6 +14,7 @@ import { ProfilePage } from './features/users/pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
+import { CategoryListPage } from './features/categories/pages/CategoryListPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,6 +92,14 @@ export const App: React.FC = () => {
                   }
                 />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route
+                  path="/settings/categories"
+                  element={
+                    <PermissionRoute action="lookup.manage">
+                      <CategoryListPage />
+                    </PermissionRoute>
+                  }
+                />
                 <Route
                   path="/follow-ups"
                   element={

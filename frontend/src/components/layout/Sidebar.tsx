@@ -9,6 +9,7 @@ import {
   X,
   BriefcaseBusiness,
   UserCog,
+  Tags,
 } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '../../constants/app';
 import { usePermissions } from '../../auth/permissions';
@@ -33,6 +34,7 @@ const baseNavItems: NavItem[] = [
   { name: 'Pipeline', to: '/pipeline', icon: TrendingUp },
   { name: 'Follow-ups', to: '/follow-ups', icon: Clock },
   { name: 'Users', to: '/users', icon: UserCog, requiredAction: 'user.manage' },
+  { name: 'Categories', to: '/settings/categories', icon: Tags, requiredAction: 'lookup.manage' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
