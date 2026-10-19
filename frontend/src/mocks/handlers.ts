@@ -2,6 +2,7 @@ import { http, HttpResponse, delay } from 'msw';
 import { INITIAL_ACCOUNTS, INITIAL_CONTACTS } from './data';
 import { accountHandlers } from './handlers/accounts';
 import { userHandlers } from './handlers/users';
+import { authHandlers } from './handlers/auth';
 import type {
   Account,
   Contact,
@@ -17,6 +18,7 @@ let accounts: Account[] = [...INITIAL_ACCOUNTS];
 let contacts: Contact[] = [...INITIAL_CONTACTS];
 
 export const handlers = [
+  ...authHandlers,
   ...userHandlers,
   ...accountHandlers,
   // --- ACCOUNTS ENDPOINTS (/api/v1/accounts) ---

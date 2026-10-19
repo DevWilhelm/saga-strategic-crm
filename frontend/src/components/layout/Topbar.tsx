@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, ChevronDown, User as UserIcon, UserCheck } from 'lucide-react';
+import { Menu, ChevronDown, User as UserIcon, UserCheck, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../constants/users';
 
@@ -21,7 +21,7 @@ const DEV_PERSONAS: Array<{
 ];
 
 export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
-  const { user, switchDevUser } = useAuth();
+  const { user, switchDevUser, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -159,6 +159,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
               >
                 <UserIcon className="h-4 w-4 text-[var(--text-secondary)]" />
                 <span>My Profile &amp; Password</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDropdownOpen(false);
+                  logout();
+                  navigate('/login', { replace: true });
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-[var(--status-overdue-text)] hover:bg-[var(--status-overdue-bg)] transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign out</span>
               </button>
             </div>
 

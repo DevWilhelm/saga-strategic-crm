@@ -1,14 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CurrentUser } from '../types/user';
 import type { UserRole, PermissionAction } from '../constants/users';
 import { usersApi } from '../api/usersApi';
+import { authApi } from '../api/authApi';
+import { tokenStore } from '../api/tokenStore';
+
+export type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 
 export interface AuthContextType {
   user: CurrentUser | null;
   role: UserRole | null;
   permissions: PermissionAction[];
+  status: AuthStatus;
   isAuthenticated: boolean;
   isLoading: boolean;
+  login: (identifier: string, password: string) => Promise<CurrentUser>;
+  logout: () => void;
   switchDevUser: (userId: string) => Promise<void>;
   refetchUser: () => Promise<void>;
 }
@@ -17,102 +25,73 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   role: null,
   permissions: [],
+  status: 'loading',
   isAuthenticated: false,
   isLoading: true,
+  login: async () => {
+    throw new Error('AuthProvider is missing');
+  },
+  logout: () => {},
   switchDevUser: async () => {},
   refetchUser: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Without a token there is nothing to restore, so the app goes straight to sign-in.
+  const [status, setStatus] = useState<AuthStatus>(() => (authApi.hasSession() ? 'loading' : 'anonymous'));
+
+  const signOutLocally = useCallback(() => {
+    authApi.logout();
+    setUser(null);
+    setStatus('anonymous');
+    queryClient.clear();
+  }, [queryClient]);
 
   const fetchMe = useCallback(async () => {
     try {
       const data = await usersApi.getMe();
       setUser(data);
+      setStatus('authenticated');
     } catch (error) {
       console.error('Failed to load authenticated user profile from /api/me:', error);
-      // Fallback default super admin profile in mock environment
-      setUser({
-        id: 'usr-super',
-        name: 'Alex Mercer',
-        code: 'AM',
-        username: 'alex.mercer',
-        role: 'SUPER_ADMIN',
-        status: 'ACTIVE',
-        email: 'alex.mercer@crm.saga.com',
-        phone: '+66 80 123 4567',
-        photoUrl: null,
-        managerId: null,
-        managerName: null,
-        permissions: [
-          'dashboard.view',
-          'accounts.view',
-          'account.create',
-          'account.edit',
-          'account.reassignOwner',
-          'account.import',
-          'account.template',
-          'account.export',
-          'contacts.view',
-          'lookup.manage',
-          'user.manage',
-        ],
-      });
-    } finally {
-      setIsLoading(false);
+      signOutLocally();
     }
-  }, []);
+  }, [signOutLocally]);
 
+  // On first load, restore the session if this tab still has a token.
   useEffect(() => {
     let ignore = false;
+    if (!authApi.hasSession()) return;
     usersApi
       .getMe()
       .then((data) => {
-        if (!ignore) {
-          setUser(data);
-          setIsLoading(false);
-        }
+        if (ignore) return;
+        setUser(data);
+        setStatus('authenticated');
       })
       .catch((error) => {
         console.error('Failed to load authenticated user profile from /api/me:', error);
-        if (!ignore) {
-          setUser({
-            id: 'usr-super',
-            name: 'Alex Mercer',
-            code: 'AM',
-            username: 'alex.mercer',
-            role: 'SUPER_ADMIN',
-            status: 'ACTIVE',
-            email: 'alex.mercer@crm.saga.com',
-            phone: '+66 80 123 4567',
-            photoUrl: null,
-            managerId: null,
-            managerName: null,
-            permissions: [
-              'dashboard.view',
-              'accounts.view',
-              'account.create',
-              'account.edit',
-              'account.reassignOwner',
-              'account.import',
-              'account.template',
-              'account.export',
-              'contacts.view',
-              'lookup.manage',
-              'user.manage',
-            ],
-          });
-          setIsLoading(false);
-        }
+        if (!ignore) signOutLocally();
       });
-
     return () => {
       ignore = true;
     };
+  }, [signOutLocally]);
+
+  // The API client reports when the token is rejected mid-session.
+  useEffect(() => tokenStore.onSessionExpired(signOutLocally), [signOutLocally]);
+
+  const login = useCallback(async (identifier: string, password: string) => {
+    await authApi.login({ identifier, password });
+    const me = await usersApi.getMe();
+    setUser(me);
+    setStatus('authenticated');
+    return me;
   }, []);
 
+  // Dev mock only: switch persona without signing out (Topbar "Dev Role Switcher").
   const switchDevUser = useCallback(
     async (userId: string) => {
       if (typeof window !== 'undefined' && window.sessionStorage) {
@@ -128,12 +107,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       role: user?.role || null,
       permissions: user?.permissions || [],
-      isAuthenticated: Boolean(user),
-      isLoading,
+      status,
+      isAuthenticated: status === 'authenticated',
+      isLoading: status === 'loading',
+      login,
+      logout: signOutLocally,
       switchDevUser,
       refetchUser: fetchMe,
     }),
-    [user, isLoading, switchDevUser, fetchMe]
+    [user, status, login, signOutLocally, switchDevUser, fetchMe]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
