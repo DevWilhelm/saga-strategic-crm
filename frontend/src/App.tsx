@@ -13,6 +13,8 @@ import { UserFormPage } from './features/users/pages/UserFormPage';
 import { ProfilePage } from './features/users/pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { LoginPage } from './features/auth/pages/LoginPage';
+import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { FilterProvider } from './features/dashboard/context/FilterContext';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
 import { CategoryListPage } from './features/categories/pages/CategoryListPage';
 import { SubCategoryListPage } from './features/sub-categories/pages/SubCategoryListPage';
@@ -39,10 +41,11 @@ export const App: React.FC = () => {
                 <Route
                   path="/dashboard"
                   element={
-                    <PlaceholderPage
-                      title="Dashboard"
-                      description="Executive overview and analytics (under development in feature/fe-login-dashboard)."
-                    />
+                    <PermissionRoute action="dashboard.view">
+                      <FilterProvider>
+                        <DashboardPage />
+                      </FilterProvider>
+                    </PermissionRoute>
                   }
                 />
                 {/* Accounts Module Routes */}
