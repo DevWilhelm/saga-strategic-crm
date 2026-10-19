@@ -4,6 +4,7 @@ import { accountHandlers } from './handlers/accounts';
 import { userHandlers } from './handlers/users';
 import { authHandlers } from './handlers/auth';
 import { categoryHandlers } from './handlers/categories';
+import { subCategoryHandlers } from './handlers/subCategories';
 import type {
   Account,
   Contact,
@@ -21,6 +22,7 @@ let contacts: Contact[] = [...INITIAL_CONTACTS];
 export const handlers = [
   ...authHandlers,
   ...categoryHandlers,
+  ...subCategoryHandlers,
   ...userHandlers,
   ...accountHandlers,
   // --- ACCOUNTS ENDPOINTS (/api/v1/accounts) ---

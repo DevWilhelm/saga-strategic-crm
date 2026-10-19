@@ -15,6 +15,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
 import { CategoryListPage } from './features/categories/pages/CategoryListPage';
+import { SubCategoryListPage } from './features/sub-categories/pages/SubCategoryListPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,6 +98,14 @@ export const App: React.FC = () => {
                   element={
                     <PermissionRoute action="lookup.manage">
                       <CategoryListPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/settings/sub-categories"
+                  element={
+                    <PermissionRoute action="lookup.manage">
+                      <SubCategoryListPage />
                     </PermissionRoute>
                   }
                 />
