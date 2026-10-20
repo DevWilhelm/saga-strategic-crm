@@ -19,6 +19,7 @@ import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
 import { CategoryListPage } from './features/categories/pages/CategoryListPage';
 import { SubCategoryListPage } from './features/sub-categories/pages/SubCategoryListPage';
 import { ServiceListPage } from './features/services/pages/ServiceListPage';
+import { FollowUpListPage } from './features/follow-ups/pages/FollowUpListPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -121,15 +122,7 @@ export const App: React.FC = () => {
                     </PermissionRoute>
                   }
                 />
-                <Route
-                  path="/follow-ups"
-                  element={
-                    <PlaceholderPage
-                      title="Follow-ups"
-                      description="Action items, scheduled partner calls, and follow-up deadlines."
-                    />
-                  }
-                />
+                <Route path="/follow-ups" element={<FollowUpListPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Route>
