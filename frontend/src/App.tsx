@@ -18,6 +18,7 @@ import { FilterProvider } from './features/dashboard/context/FilterContext';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
 import { CategoryListPage } from './features/categories/pages/CategoryListPage';
 import { SubCategoryListPage } from './features/sub-categories/pages/SubCategoryListPage';
+import { ServiceListPage } from './features/services/pages/ServiceListPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -109,6 +110,14 @@ export const App: React.FC = () => {
                   element={
                     <PermissionRoute action="lookup.manage">
                       <SubCategoryListPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/settings/services"
+                  element={
+                    <PermissionRoute action="lookup.manage">
+                      <ServiceListPage />
                     </PermissionRoute>
                   }
                 />

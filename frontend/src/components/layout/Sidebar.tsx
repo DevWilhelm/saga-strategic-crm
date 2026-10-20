@@ -11,6 +11,7 @@ import {
   UserCog,
   Tags,
   ListTree,
+  Handshake,
 } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '../../constants/app';
 import { usePermissions } from '../../auth/permissions';
@@ -37,6 +38,7 @@ const baseNavItems: NavItem[] = [
   { name: 'Users', to: '/users', icon: UserCog, requiredAction: 'user.manage' },
   { name: 'Categories', to: '/settings/categories', icon: Tags, requiredAction: 'lookup.manage' },
   { name: 'Sub-categories', to: '/settings/sub-categories', icon: ListTree, requiredAction: 'lookup.manage' },
+  { name: 'Services', to: '/settings/services', icon: Handshake, requiredAction: 'lookup.manage' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {

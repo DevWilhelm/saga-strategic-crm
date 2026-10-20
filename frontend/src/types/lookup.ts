@@ -21,9 +21,13 @@ export interface SubCategory {
   status?: RecordStatus;
 }
 
+// ERD: SERVICE (id, name, description, status); optional here for the same
+// reason as Category.
 export interface Service {
   id: string;
   name: string;
+  description?: string | null;
+  status?: RecordStatus;
 }
 
 export interface OwnerOption extends UserOption {

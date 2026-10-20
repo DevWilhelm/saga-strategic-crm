@@ -1,5 +1,5 @@
 import { HttpResponse } from 'msw';
-import { mockStore, MOCK_CATEGORIES, MOCK_SUB_CATEGORIES } from '../store';
+import { mockStore, MOCK_CATEGORIES, MOCK_SERVICES, MOCK_SUB_CATEGORIES } from '../store';
 import { ROLE_PRESET_PERMISSIONS } from '../../constants/users';
 import type { FieldValidationError } from '../../types/account';
 import type { RecordStatus } from '../../types/common';
@@ -55,8 +55,9 @@ export const parseSort = (url: URL, allowed: readonly string[], fallback: string
   };
 };
 
-// Tests call this so each test starts from the seed categories and sub-categories.
+// Tests call this so each test starts from the seed categories, sub-categories and services.
 export const resetLookupStore = () => {
   mockStore.categories = MOCK_CATEGORIES.map((c) => ({ ...c }));
   mockStore.subCategories = MOCK_SUB_CATEGORIES.map((s) => ({ ...s }));
+  mockStore.services = MOCK_SERVICES.map((s) => ({ ...s }));
 };

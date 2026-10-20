@@ -5,6 +5,7 @@ import { userHandlers } from './handlers/users';
 import { authHandlers } from './handlers/auth';
 import { categoryHandlers } from './handlers/categories';
 import { subCategoryHandlers } from './handlers/subCategories';
+import { serviceHandlers } from './handlers/services';
 import { dashboardHandlers } from './handlers/dashboard';
 import type {
   Account,
@@ -24,6 +25,7 @@ export const handlers = [
   ...authHandlers,
   ...categoryHandlers,
   ...subCategoryHandlers,
+  ...serviceHandlers,
   ...dashboardHandlers,
   ...userHandlers,
   ...accountHandlers,
