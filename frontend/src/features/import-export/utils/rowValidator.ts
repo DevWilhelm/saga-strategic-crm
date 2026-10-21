@@ -391,3 +391,301 @@ export async function downloadErrorReport(
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   );
 }
+
+export interface ClientContactValidationResult {
+  rows: ValidatedImportRow<import('../../../types/contact').CreateContactDTO & { companyName?: string; ownerUsername?: string }>[];
+  missingRequiredHeaders: string[];
+  unknownHeaders: string[];
+  counts: {
+    total: number;
+    valid: number;
+    errors: number;
+    duplicates: number;
+  };
+}
+
+/**
+ * Validates Contact import rows against CRM accounts, users, and duplicate constraints.
+ */
+export async function validateContactImportRows(
+  rawHeaders: string[],
+  rawRows: Record<string, string>[],
+  accounts: Array<{ id: string; name: string }>,
+  users: Array<{ id: string; username?: string | null; name: string; managerId?: string | null }>,
+  currentUser: CurrentUser | null,
+  existingContacts: Array<{ id: string; name: string; companyId: string; email?: string | null }>
+): Promise<ClientContactValidationResult> {
+  const { CONTACT_COLUMNS } = await import('../constants/contactColumns');
+
+  const headerAnalysis = analyzeHeaders(rawHeaders, CONTACT_COLUMNS);
+  const colKeyToHeader = new Map<string, string>();
+  for (const [rawHeader, colDef] of headerAnalysis.matchedColumns.entries()) {
+    colKeyToHeader.set(colDef.key, rawHeader);
+  }
+
+  const missingRequired = CONTACT_COLUMNS.filter((c) => c.required && !colKeyToHeader.has(c.key)).map(
+    (c) => c.header
+  );
+
+  const seenFileEmails = new Set<string>();
+  const seenFileCompanyNames = new Set<string>();
+
+  const rows: ValidatedImportRow<
+    import('../../../types/contact').CreateContactDTO & { companyName?: string; ownerUsername?: string }
+  >[] = [];
+
+  let validCount = 0;
+  let errorsCount = 0;
+  let duplicatesCount = 0;
+
+  rawRows.forEach((rawRow, index) => {
+    const rowNumber = index + 1;
+    const errors: RowValidationError[] = [];
+    let isDuplicate = false;
+    let duplicateReason: string | undefined = undefined;
+
+    // Helper to get raw cell value by key
+    const getValue = (key: string): string => {
+      const headerName = colKeyToHeader.get(key);
+      if (!headerName) return '';
+      return (rawRow[headerName] || '').trim();
+    };
+
+    const nameVal = getValue('name');
+    const companyVal = getValue('company');
+    const targetRoleVal = getValue('targetRole');
+    const personaCategoryVal = getValue('personaCategory');
+    const roleKeywordVal = getValue('roleKeyword');
+    const tierVal = getValue('tier');
+    const linkedinSearchNameVal = getValue('linkedinSearchName');
+    const linkedinProfileUrlVal = getValue('linkedinProfileUrl');
+    const emailVal = getValue('email').toLowerCase();
+    const phoneNoVal = getValue('phoneNo');
+    const targetAngleVal = getValue('targetAngle');
+    const statusVal = getValue('status');
+    const nextStepVal = getValue('nextStep');
+    const ownerUsernameVal = getValue('ownerUsername');
+    const relationshipStatusVal = getValue('relationshipStatus');
+    const isClosedVal = getValue('isClosed');
+    const noteVal = getValue('note');
+    const remarkVal = getValue('remark');
+
+    // 1. Validate Name* (required, max 100)
+    if (!nameVal) {
+      errors.push({ field: 'Name*', message: 'Contact name is required' });
+    } else if (nameVal.length > 100) {
+      errors.push({ field: 'Name*', message: 'Name cannot exceed 100 characters' });
+    }
+
+    // 2. Validate Company* (required, match existing account case-insensitively)
+    let matchedCompanyId = '';
+    if (!companyVal) {
+      errors.push({ field: 'Company*', message: 'Company is required' });
+    } else {
+      const foundAccount = accounts.find(
+        (a) => a.name.toLowerCase() === companyVal.toLowerCase()
+      );
+      if (!foundAccount) {
+        errors.push({
+          field: 'Company*',
+          message: `Unknown company '${companyVal}'. Must match an active CRM account name.`,
+        });
+      } else {
+        matchedCompanyId = foundAccount.id;
+      }
+    }
+
+    // 3. Validate Tier* (required, TIER_1, TIER_2, TIER_3)
+    const normalizedTier = tierVal ? normalizeTier(tierVal) : null;
+    if (!tierVal) {
+      errors.push({ field: 'Tier*', message: 'Priority tier is required (e.g. TIER_1, TIER_2, TIER_3)' });
+    } else if (!normalizedTier) {
+      errors.push({ field: 'Tier*', message: `Invalid tier '${tierVal}'. Allowed: TIER_1, TIER_2, TIER_3` });
+    }
+
+    // 4. Validate Email (optional, valid format)
+    if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      errors.push({ field: 'Email', message: 'Invalid email address format' });
+    }
+
+    // 5. Validate LinkedIn URL (optional, must start with https://)
+    if (linkedinProfileUrlVal && !/^https:\/\/[^\s/$.?#].[^\s]*$/i.test(linkedinProfileUrlVal)) {
+      errors.push({ field: 'LinkedIn profile URL', message: 'URL must start with https://' });
+    }
+
+    // 6. Validate Owner Username (Members restricted to self)
+    let assignedOwnerId = currentUser?.id || '';
+    if (ownerUsernameVal) {
+      const foundUser = users.find(
+        (u) => u.username?.toLowerCase() === ownerUsernameVal.toLowerCase()
+      );
+      if (!foundUser) {
+        errors.push({
+          field: 'Owner username',
+          message: `Unknown user '${ownerUsernameVal}'. Must match an active CRM user.`,
+        });
+      } else if (currentUser?.role === 'MEMBER' && foundUser.id !== currentUser.id) {
+        errors.push({
+          field: 'Owner username',
+          message: `Permission error: Members can only assign contacts to themselves (${currentUser.username || currentUser.name}).`,
+        });
+      } else {
+        assignedOwnerId = foundUser.id;
+      }
+    }
+
+    // 7. Validate Relationship Status (HOT, WARM, COLD)
+    let relationshipStatus: 'HOT' | 'WARM' | 'COLD' = 'WARM';
+    if (relationshipStatusVal) {
+      const upper = relationshipStatusVal.toUpperCase();
+      if (upper === 'HOT' || upper === 'WARM' || upper === 'COLD') {
+        relationshipStatus = upper;
+      } else {
+        errors.push({
+          field: 'Relationship status',
+          message: `Invalid relationship status '${relationshipStatusVal}'. Allowed: HOT, WARM, COLD`,
+        });
+      }
+    }
+
+    // 8. Closed state normalization
+    let isClosed = false;
+    if (isClosedVal) {
+      const cleanClosed = isClosedVal.toLowerCase();
+      isClosed = cleanClosed === 'yes' || cleanClosed === 'true' || cleanClosed === '1';
+    }
+
+    // 9. Status normalization
+    let status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE';
+    if (statusVal) {
+      const upper = statusVal.toUpperCase();
+      if (upper === 'ACTIVE' || upper === 'INACTIVE') {
+        status = upper;
+      }
+    }
+
+    // 10. Duplicate Checks:
+    // Duplicate rule: same email, or same name within the same company
+    if (errors.length === 0) {
+      const companyKey = matchedCompanyId || companyVal.toLowerCase();
+      const nameCompanyKey = `${companyKey}::${nameVal.toLowerCase()}`;
+
+      // Check email duplicate in file
+      if (emailVal && seenFileEmails.has(emailVal)) {
+        isDuplicate = true;
+        duplicateReason = `Duplicate email '${emailVal}' found earlier in this file`;
+      }
+      // Check email duplicate in CRM
+      else if (emailVal && existingContacts.some((c) => c.email && c.email.toLowerCase() === emailVal)) {
+        isDuplicate = true;
+        duplicateReason = `Contact with email '${emailVal}' already exists in CRM`;
+      }
+      // Check name+company duplicate in file
+      else if (seenFileCompanyNames.has(nameCompanyKey)) {
+        isDuplicate = true;
+        duplicateReason = `Contact '${nameVal}' under '${companyVal}' appears multiple times in file`;
+      }
+      // Check name+company duplicate in CRM
+      else if (
+        matchedCompanyId &&
+        existingContacts.some(
+          (c) => c.companyId === matchedCompanyId && c.name.toLowerCase() === nameVal.toLowerCase()
+        )
+      ) {
+        isDuplicate = true;
+        duplicateReason = `Contact '${nameVal}' already exists under '${companyVal}' in CRM`;
+      }
+
+      if (emailVal) seenFileEmails.add(emailVal);
+      seenFileCompanyNames.add(nameCompanyKey);
+    }
+
+    const rowStatus: 'VALID' | 'ERROR' | 'DUPLICATE' =
+      errors.length > 0 ? 'ERROR' : isDuplicate ? 'DUPLICATE' : 'VALID';
+
+    if (rowStatus === 'VALID') validCount++;
+    else if (rowStatus === 'ERROR') errorsCount++;
+    else duplicatesCount++;
+
+    rows.push({
+      rowNumber,
+      status: rowStatus,
+      raw: rawRow,
+      errors,
+      duplicateReason,
+      data: {
+        name: nameVal,
+        companyId: matchedCompanyId,
+        companyName: companyVal,
+        targetRole: targetRoleVal || null,
+        personaCategory: personaCategoryVal || null,
+        roleKeyword: roleKeywordVal || null,
+        tier: (normalizedTier as 'TIER_1' | 'TIER_2' | 'TIER_3') || 'TIER_2',
+        linkedinSearchName: linkedinSearchNameVal || null,
+        linkedinProfileUrl: linkedinProfileUrlVal || null,
+        email: emailVal || null,
+        phoneNo: phoneNoVal || null,
+        targetAngle: targetAngleVal || null,
+        status,
+        nextStep: nextStepVal || null,
+        ownerId: assignedOwnerId,
+        ownerUsername: ownerUsernameVal || undefined,
+        relationshipStatus,
+        isClosed,
+        note: noteVal || null,
+        remark: remarkVal || null,
+      },
+    });
+  });
+
+  return {
+    rows,
+    missingRequiredHeaders: missingRequired,
+    unknownHeaders: headerAnalysis.unknownHeaders,
+    counts: {
+      total: rawRows.length,
+      valid: validCount,
+      errors: errorsCount,
+      duplicates: duplicatesCount,
+    },
+  };
+}
+
+/**
+ * Builds and downloads an Excel error report (.xlsx) for Contacts import.
+ */
+export async function downloadContactErrorReport(
+  rawHeaders: string[],
+  rows: ValidatedImportRow<unknown>[]
+): Promise<void> {
+  const XLSX = await import('xlsx');
+
+  const reportHeaders = ['Row', 'Status', 'Error / Reason', ...rawHeaders];
+  const reportAoa: string[][] = [reportHeaders];
+
+  rows.forEach((r) => {
+    const errorText =
+      r.errors.map((e) => `${e.field}: ${e.message}`).join('; ') || r.duplicateReason || '';
+    const rowValues = rawHeaders.map((h) => r.raw[h] || '');
+    reportAoa.push([String(r.rowNumber), r.status, errorText, ...rowValues]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(reportAoa);
+  ws['!cols'] = [
+    { wch: 8 },  // Row
+    { wch: 14 }, // Status
+    { wch: 45 }, // Error
+    ...rawHeaders.map(() => ({ wch: 22 })),
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Contact Error Report');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadArrayBuffer(
+    wbout,
+    `contacts-import-error-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+}
+

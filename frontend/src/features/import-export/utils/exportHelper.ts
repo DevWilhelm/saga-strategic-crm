@@ -165,3 +165,113 @@ export async function buildAccountsXlsx(
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   return new Uint8Array(wbout);
 }
+
+/**
+ * Transforms a Contact model into an export row matching the 18-column contact specification.
+ */
+export function mapContactToExportRow(contact: import('../../../types/contact').ContactListItem): ExportRowData {
+  return {
+    'Name*': contact.name,
+    'Company*': contact.companyName || '',
+    'Target role': contact.targetRole || '',
+    'Persona category': contact.personaCategory || '',
+    'Role keyword': contact.roleKeyword || '',
+    'Tier*': contact.tier,
+    'LinkedIn search name': contact.linkedinSearchName || '',
+    'LinkedIn profile URL': contact.linkedinProfileUrl || '',
+    Email: contact.email || '',
+    Phone: contact.phoneNo || '',
+    'Target angle': contact.targetAngle || '',
+    Status: contact.status,
+    'Next step': contact.nextStep || '',
+    'Owner username': contact.ownerName || '',
+    'Relationship status': contact.relationshipStatus,
+    Closed: contact.isClosed ? 'Yes' : 'No',
+    Note: contact.note || '',
+    Remark: contact.remark || '',
+  };
+}
+
+/**
+ * Generates CSV string for contacts with UTF-8 BOM and formula injection protection.
+ */
+export async function buildContactsCsv(
+  contacts: import('../../../types/contact').ContactListItem[]
+): Promise<string> {
+  const { CONTACT_COLUMNS } = await import('../constants/contactColumns');
+  const headers = CONTACT_COLUMNS.map((c) => c.header);
+  const rows = contacts.map((c) => mapContactToExportRow(c));
+
+  const csvRows: string[] = [];
+  csvRows.push(headers.map((h) => sanitizeCsvCellValue(h)).join(','));
+
+  rows.forEach((row) => {
+    const line = headers.map((h) => sanitizeCsvCellValue(row[h] || '')).join(',');
+    csvRows.push(line);
+  });
+
+  // UTF-8 Byte Order Mark (\uFEFF)
+  return '\uFEFF' + csvRows.join('\r\n');
+}
+
+/**
+ * Generates XLSX binary buffer for contacts with string types.
+ */
+export async function buildContactsXlsx(
+  contacts: import('../../../types/contact').ContactListItem[]
+): Promise<Uint8Array> {
+  const XLSX = await import('xlsx');
+  const { CONTACT_COLUMNS } = await import('../constants/contactColumns');
+  const headers = CONTACT_COLUMNS.map((c) => c.header);
+  const rows = contacts.map((c) => mapContactToExportRow(c));
+
+  const dataAoa: (string | number)[][] = [headers];
+  rows.forEach((row) => {
+    dataAoa.push(headers.map((h) => row[h] || ''));
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(dataAoa);
+
+  // Force all cells to string type
+  if (ws['!ref']) {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cellAddress];
+        if (cell && cell.v !== undefined && cell.v !== null) {
+          cell.t = 's';
+          cell.v = String(cell.v);
+        }
+      }
+    }
+  }
+
+  ws['!cols'] = [
+    { wch: 24 }, // Name*
+    { wch: 24 }, // Company*
+    { wch: 24 }, // Target role
+    { wch: 20 }, // Persona category
+    { wch: 20 }, // Role keyword
+    { wch: 14 }, // Tier*
+    { wch: 22 }, // LinkedIn search name
+    { wch: 32 }, // LinkedIn profile URL
+    { wch: 28 }, // Email
+    { wch: 18 }, // Phone
+    { wch: 35 }, // Target angle
+    { wch: 14 }, // Status
+    { wch: 35 }, // Next step
+    { wch: 20 }, // Owner username
+    { wch: 20 }, // Relationship status
+    { wch: 12 }, // Closed
+    { wch: 35 }, // Note
+    { wch: 35 }, // Remark
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new Uint8Array(wbout);
+}
+

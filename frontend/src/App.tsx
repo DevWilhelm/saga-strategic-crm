@@ -11,6 +11,9 @@ import { PermissionRoute } from './components/common/PermissionRoute';
 import { UserListPage } from './features/users/pages/UserListPage';
 import { UserFormPage } from './features/users/pages/UserFormPage';
 import { ProfilePage } from './features/users/pages/ProfilePage';
+import { ContactListPage } from './features/contacts/pages/ContactListPage';
+import { ContactDetailPage } from './features/contacts/pages/ContactDetailPage';
+import { ContactFormPage } from './features/contacts/pages/ContactFormPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 const queryClient = new QueryClient({
@@ -44,15 +47,11 @@ export const App: React.FC = () => {
               <Route path="/accounts/new" element={<AccountFormPage />} />
               <Route path="/accounts/:id" element={<AccountDetailPage />} />
               <Route path="/accounts/:id/edit" element={<AccountFormPage />} />
-              <Route
-                path="/contacts"
-                element={
-                  <PlaceholderPage
-                    title="Contacts"
-                    description="Key decision-makers, senior leadership, and stakeholder relationships."
-                  />
-                }
-              />
+              {/* Contacts Module Routes */}
+              <Route path="/contacts" element={<ContactListPage />} />
+              <Route path="/contacts/new" element={<ContactFormPage />} />
+              <Route path="/contacts/:id" element={<ContactDetailPage />} />
+              <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
               <Route
                 path="/pipeline"
                 element={

@@ -35,6 +35,22 @@
    - [4.11 POST /api/users/{id}/reset-password (Admin Password Reset)](#411-post-apiusersidreset-password)
    - [4.12 POST /api/me/change-password (Self Password Change)](#412-post-apimechange-password)
    - [4.13 Error Codes & Business Conflict Rules](#413-error-codes--business-conflict-rules)
+5. [Contacts & Follow-Ups Module Endpoints](#5-contacts--follow-ups-module-endpoints)
+   - [5.1 GET /api/contacts (Paginated List)](#51-get-apicontacts)
+   - [5.2 GET /api/contacts/{id} (Contact Detail)](#52-get-apicontactsid)
+   - [5.3 POST /api/contacts (Create Contact)](#53-post-apicontacts)
+   - [5.4 PUT /api/contacts/{id} (Update Contact)](#54-put-apicontactsid)
+   - [5.5 PATCH /api/contacts/{id}/close (Toggle Closed Engagement)](#55-patch-apicontactsidclose)
+   - [5.6 DELETE /api/contacts/{id} (Delete Contact)](#56-delete-apicontactsid)
+   - [5.7 GET /api/contacts/{id}/follow-ups (List Follow-Up Tasks)](#57-get-apicontactsidfollow-ups)
+   - [5.8 POST /api/contacts/{id}/follow-ups (Create Follow-Up Task)](#58-post-apicontactsidfollow-ups)
+   - [5.9 PUT /api/contacts/{id}/follow-ups/{followUpId} (Update Follow-Up Task)](#59-put-apicontactsidfollow-upsfollowupid)
+   - [5.10 PATCH /api/contacts/{id}/follow-ups/{followUpId}/done (Mark Follow-Up Completed)](#510-patch-apicontactsidfollow-upsfollowupiddone)
+   - [5.11 DELETE /api/contacts/{id}/follow-ups/{followUpId} (Delete Follow-Up Task)](#511-delete-apicontactsidfollow-upsfollowupid)
+   - [5.12 POST /api/contacts/import (Validate & Commit Spreadsheet Rows)](#512-post-apicontactsimport)
+   - [5.13 GET /api/contacts/export (Export Contacts Spreadsheet)](#513-get-apicontactsexport)
+   - [5.14 Contact 18-Column Spreadsheet Format Specification](#514-contact-18-column-spreadsheet-format-specification)
+   - [5.15 Error Codes & Business Conflict Rules](#515-error-codes--business-conflict-rules)
 
 ---
 
@@ -854,4 +870,378 @@ Self-service password update for any authenticated user.
 | `409` | Conflict | Email already registered to another user | `{ "status": 409, "error": "Conflict", "message": "Email 'sarah.j@saga-consulting.com' is already registered to another user." }` |
 | `409` | Conflict | Username already taken | `{ "status": 409, "error": "Conflict", "message": "Username 'sarah.j' is already taken." }` |
 | `409` | Conflict | Initials Code already in use | `{ "status": 409, "error": "Conflict", "message": "Initials Code 'SJ' is already in use." }` |
+
+---
+
+## 5. Contacts & Follow-Ups Module Endpoints
+
+### 5.1 GET `/api/contacts`
+Retrieves a paginated list of contacts with text search, relational filtering, and sorting.
+
+* **Query Parameters**:
+  | Parameter | Type | Required | Default | Description |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `q` | `string` | No | `""` | Case-insensitive search across contact `name`, `targetRole`, and `email`. |
+  | `companyId` | `string` | No | — | Filter by parent Account / Company ID. |
+  | `tier` | `string` | No | — | Filter by Tier (`TIER_1`, `TIER_2`, `TIER_3`). |
+  | `relationshipStatus` | `string` | No | — | Filter by Relationship Status (`HOT`, `WARM`, `COLD`). |
+  | `status` | `string` | No | — | Filter by Status (`ACTIVE`, `INACTIVE`). |
+  | `ownerId` | `string` | No | — | Filter by assigned Owner User ID. |
+  | `isClosed` | `string` | No | `ALL` | Engagement filter: `ALL`, `OPEN` (`isClosed=false`), `CLOSED` (`isClosed=true`). |
+  | `followUpSchedule` | `string` | No | — | Follow-up due urgency: `OVERDUE`, `DUE_TODAY`, `UPCOMING`, `NONE`. |
+  | `page` | `integer` | No | `0` | **0-based** page index. |
+  | `size` | `integer` | No | `10` | Page size (10, 20, 50). |
+  | `sort` | `string` | No | `updatedDate,desc` | Format: `field,asc` or `field,desc`. Allowed fields: `name`, `tier`, `nextFollowUpDate`, `updatedDate`. |
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "content": [
+    {
+      "id": "ct-001",
+      "name": "Dr. Somchai Prasert",
+      "companyId": "acc-001",
+      "companyName": "Bangkok International Hospital",
+      "targetRole": "Chief Medical Officer",
+      "personaCategory": "C-Suite",
+      "roleKeyword": "Medical Officer",
+      "tier": "TIER_1",
+      "email": "somchai.p@bih.co.th",
+      "phone": "+66 2 123 4567",
+      "linkedinSearchName": "somchai-prasert",
+      "linkedinUrl": "https://www.linkedin.com/in/somchai-prasert",
+      "targetAngle": "Digital telehealth transformation across 3 flagship hospitals",
+      "status": "ACTIVE",
+      "relationshipStatus": "HOT",
+      "isClosed": false,
+      "ownerId": "usr-ploy",
+      "ownerName": "Ploy S.",
+      "nextStep": "Finalize terms for telehealth pilot across 3 flagship hospitals",
+      "nextFollowUpDate": "2026-10-22",
+      "lastContactedDate": "2026-10-08",
+      "updatedDate": "2026-10-18"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 25,
+  "totalPages": 3,
+  "last": false
+}
+```
+
+---
+
+### 5.2 GET `/api/contacts/{id}`
+Retrieves complete profile details for a single contact, including strategic angles, LinkedIn metadata, and follow-up aggregation.
+
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "id": "ct-001",
+  "name": "Dr. Somchai Prasert",
+  "companyId": "acc-001",
+  "companyName": "Bangkok International Hospital",
+  "targetRole": "Chief Medical Officer",
+  "personaCategory": "C-Suite",
+  "roleKeyword": "Medical Officer",
+  "tier": "TIER_1",
+  "email": "somchai.p@bih.co.th",
+  "phone": "+66 2 123 4567",
+  "linkedinSearchName": "somchai-prasert",
+  "linkedinUrl": "https://www.linkedin.com/in/somchai-prasert",
+  "targetAngle": "Digital telehealth transformation across 3 flagship hospitals",
+  "status": "ACTIVE",
+  "relationshipStatus": "HOT",
+  "isClosed": false,
+  "ownerId": "usr-ploy",
+  "ownerName": "Ploy S.",
+  "nextStep": "Finalize terms for telehealth pilot across 3 flagship hospitals",
+  "nextFollowUpDate": "2026-10-22",
+  "lastContactedDate": "2026-10-08",
+  "notes": "Highly receptive to international clinical advisory partnerships.",
+  "remarks": "Key decision-maker for health-tech vendor selection.",
+  "followUpCount": 3,
+  "createdDate": "2026-09-01",
+  "updatedDate": "2026-10-18"
+}
+```
+
+---
+
+### 5.3 POST `/api/contacts`
+Creates a new contact linked to an existing account.
+
+* **Validation Rules**:
+  * `name`: required, 1–100 characters.
+  * `companyId`: required, must exist in `accounts`.
+  * `tier`: required, one of `TIER_1`, `TIER_2`, `TIER_3`.
+  * `email`: optional, valid email format.
+  * `linkedinUrl`: optional, must begin with `https://`.
+  * `ownerId`: required. Non-admins can only assign to themselves.
+  * **Duplicate Prevention**: Return `409 Conflict` if email is already registered, or if a contact with the same name exists under the target account.
+
+* **Request JSON**:
+```json
+{
+  "name": "Dr. Somchai Prasert",
+  "companyId": "acc-001",
+  "targetRole": "Chief Medical Officer",
+  "personaCategory": "C-Suite",
+  "roleKeyword": "Medical Officer",
+  "tier": "TIER_1",
+  "email": "somchai.p@bih.co.th",
+  "phone": "+66 2 123 4567",
+  "linkedinSearchName": "somchai-prasert",
+  "linkedinUrl": "https://www.linkedin.com/in/somchai-prasert",
+  "targetAngle": "Digital telehealth transformation across 3 flagship hospitals",
+  "status": "ACTIVE",
+  "relationshipStatus": "HOT",
+  "isClosed": false,
+  "ownerId": "usr-ploy",
+  "notes": "Highly receptive to international clinical advisory partnerships.",
+  "remarks": "Key decision-maker for health-tech vendor selection."
+}
+```
+* **Response JSON (`201 Created`)**: Returns newly created Contact object with generated ID and timestamps.
+
+---
+
+### 5.4 PUT `/api/contacts/{id}`
+Updates an existing contact profile.
+
+* **Authorization Rules**:
+  * `SUPER_ADMIN`: Can edit any contact.
+  * `ADMIN`: Can edit contacts owned by themselves or their managed team members.
+  * `MEMBER`: Can only edit contacts they personally own.
+* **Duplicate Prevention**: Returns `409 Conflict` if updated email clashes with another contact or duplicate name exists under the same company.
+
+* **Request JSON**: Same schema as POST `/api/contacts`.
+* **Response JSON (`200 OK`)**: Returns updated Contact object.
+
+---
+
+### 5.5 PATCH `/api/contacts/{id}/close`
+Toggles the `isClosed` engagement flag of a contact. Closing marks outreach concluded without deleting records.
+
+* **Request JSON**:
+```json
+{
+  "isClosed": true
+}
+```
+* **Response JSON (`200 OK`)**: Returns updated Contact with `isClosed: true`.
+
+---
+
+### 5.6 DELETE `/api/contacts/{id}`
+Deletes a contact and all linked follow-ups.
+
+* **Authorization Rules**: Subject to ownership checks (`contact.delete`).
+* **Response**: `204 No Content`.
+
+---
+
+### 5.7 GET `/api/contacts/{id}/follow-ups`
+Retrieves all follow-up action items for a contact, ordered with pending tasks first by due date ascending, followed by completed tasks.
+
+* **Response JSON (`200 OK`)**:
+```json
+[
+  {
+    "id": "fu-001",
+    "contactId": "ct-001",
+    "contactName": "Dr. Somchai Prasert",
+    "companyId": "acc-001",
+    "action": "Finalize terms for telehealth pilot across 3 flagship hospitals",
+    "dueDate": "2026-10-22",
+    "period": 14,
+    "lastContactedDate": "2026-10-08",
+    "descriptionRemark": "Prepare draft terms covering clinician data-privacy indemnity.",
+    "ownerId": "usr-ploy",
+    "ownerName": "Ploy S.",
+    "isDone": false,
+    "completedDate": null,
+    "resultNote": null,
+    "createdDate": "2026-10-08",
+    "updatedDate": "2026-10-08"
+  }
+]
+```
+
+---
+
+### 5.8 POST `/api/contacts/{id}/follow-ups`
+Schedules a new follow-up task. The system recalculates the contact's and account's `nextFollowUpDate` automatically.
+
+* **Validation Rules**:
+  * `action`: required, 1–255 characters.
+  * `dueDate`: required, `YYYY-MM-DD`.
+  * `period`: integer between 1 and 365 (default 7).
+  * `ownerId`: required.
+
+* **Request JSON**:
+```json
+{
+  "action": "Send revised clinical advisory proposal",
+  "dueDate": "2026-10-28",
+  "period": 7,
+  "lastContactedDate": "2026-10-21",
+  "descriptionRemark": "Include hospital case studies from Singapore.",
+  "ownerId": "usr-ploy"
+}
+```
+* **Response JSON (`201 Created`)**: Returns created FollowUp object.
+
+---
+
+### 5.9 PUT `/api/contacts/{id}/follow-ups/{followUpId}`
+Updates an existing follow-up task details.
+
+* **Request JSON**: Same schema as POST `/api/contacts/{id}/follow-ups`.
+* **Response JSON (`200 OK`)**: Returns updated FollowUp object.
+
+---
+
+### 5.10 PATCH `/api/contacts/{id}/follow-ups/{followUpId}/done`
+Marks a follow-up task completed, records the outcome result note, updates `lastContactedDate`, and optionally schedules the subsequent follow-up.
+
+* **Request JSON**:
+```json
+{
+  "completedDate": "2026-10-22",
+  "resultNote": "Meeting held with Dr. Somchai. Agreed to proceed with pilot draft.",
+  "nextAction": {
+    "action": "Submit pilot legal agreement to compliance committee",
+    "dueDate": "2026-11-05",
+    "period": 14,
+    "descriptionRemark": "Follow up after internal compliance review meeting."
+  }
+}
+```
+* **Response JSON (`200 OK`)**: Returns completed FollowUp object.
+
+---
+
+### 5.11 DELETE `/api/contacts/{id}/follow-ups/{followUpId}`
+Deletes a follow-up task and recalculates `nextFollowUpDate`.
+
+* **Response**: `204 No Content`.
+
+---
+
+### 5.12 POST `/api/contacts/import`
+Validates and commits a batch of contacts parsed from an Excel or CSV spreadsheet.
+
+* **Request JSON**:
+```json
+{
+  "duplicatePolicy": "SKIP",
+  "rows": [
+    {
+      "name": "Dr. Somchai Prasert",
+      "company": "Bangkok International Hospital",
+      "targetRole": "Chief Medical Officer",
+      "personaCategory": "C-Suite",
+      "roleKeyword": "Medical Officer",
+      "tier": "TIER_1",
+      "linkedinSearchName": "somchai-prasert",
+      "linkedinUrl": "https://www.linkedin.com/in/somchai-prasert",
+      "email": "somchai.p@bih.co.th",
+      "phone": "+66 2 123 4567",
+      "targetAngle": "Digital telehealth transformation",
+      "status": "ACTIVE",
+      "nextStep": "Finalize pilot terms",
+      "ownerUsername": "ploy.s",
+      "relationshipStatus": "HOT",
+      "isClosed": "No",
+      "notes": "Highly receptive to clinical advisory.",
+      "remarks": "Vendor selection chair."
+    }
+  ]
+}
+```
+* **Response JSON (`200 OK`)**:
+```json
+{
+  "totalRows": 25,
+  "importedCount": 24,
+  "skippedCount": 1,
+  "errors": []
+}
+```
+
+---
+
+### 5.13 GET `/api/contacts/export`
+Exports contacts matching the active filters as a `.xlsx` or `.csv` file.
+
+* **Query Parameters**: Same filter parameters as `GET /api/contacts`, plus `format=xlsx|csv`.
+* **Response**: Binary stream (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` or `text/csv; charset=utf-8`) with `Content-Disposition: attachment; filename="crm-contacts-export-2026-10-19.xlsx"`.
+
+---
+
+### 5.14 Contact 18-Column Spreadsheet Format Specification
+
+| # | Column Header | Required | Accepted Values | Max Length | Notes |
+|:---|:---|:---:|:---|:---:|:---|
+| 1 | `Name` | **Yes** | String | 100 | Contact's full name. |
+| 2 | `Company` | **Yes** | Existing Account name | 120 | Must match an existing Account name (case-insensitive). |
+| 3 | `Target Role` | No | String | 100 | Official corporate position (e.g. `Chief Medical Officer`). |
+| 4 | `Persona Category` | No | String | 60 | Executive grouping (e.g. `C-Suite`, `M&A / Strategy`). |
+| 5 | `Role Keyword` | No | String | 60 | Search tag keyword (e.g. `Medical Officer`). |
+| 6 | `Tier` | **Yes** | `TIER_1`, `TIER_2`, `TIER_3` | — | Strategic priority tier. |
+| 7 | `LinkedIn Search Name` | No | String | 100 | Identifier slug used in LinkedIn searches. |
+| 8 | `LinkedIn Profile URL` | No | URL beginning with `https://` | 255 | Must be a secure HTTPS web address. |
+| 9 | `Email` | No | Valid email format | 100 | Business email address. Unique across contacts. |
+| 10 | `Phone` | No | Phone string | 40 | Contact phone number with international dial code. |
+| 11 | `Target Angle` | No | String | 1000 | Strategic advisory angle or conversation hook. |
+| 12 | `Status` | No | `ACTIVE`, `INACTIVE` | — | Defaults to `ACTIVE` if omitted. |
+| 13 | `Next Step` | No | String | 255 | Scheduled action item or next engagement step. |
+| 14 | `Owner Username` | No | Valid user `username` | 50 | Defaults to current importing user if omitted. Members must use their own username. |
+| 15 | `Relationship Status` | No | `HOT`, `WARM`, `COLD` | — | Defaults to `WARM` if omitted. |
+| 16 | `Closed Engagement` | No | `Yes`, `No`, `true`, `false` | — | Flags contact as closed engagement. Defaults to `No`. |
+| 17 | `Notes` | No | String | 1000 | Internal background notes and qualitative context. |
+| 18 | `Remarks` | No | String | 1000 | Additional advisory remarks. |
+
+---
+
+### 5.15 Error Codes & Business Conflict Rules
+
+| Status | Code / Error | Condition | Example Response |
+|---|---|---|---|
+| `400` | Bad Request | Validation errors (invalid email format, invalid LinkedIn URL, missing required fields) | `{ "status": 400, "error": "Bad Request", "errors": [{ "field": "email", "message": "Email is invalid" }] }` |
+| `401` | Unauthorized | Missing or expired authentication token | `{ "status": 401, "error": "Unauthorized", "message": "Authentication required." }` |
+| `403` | Forbidden | Member editing/deleting a contact owned by another user | `{ "status": 403, "error": "Forbidden", "message": "Access denied. You may only modify contacts you own." }` |
+| `404` | Not Found | Contact ID or FollowUp ID does not exist | `{ "status": 404, "error": "Not Found", "message": "Contact with id 'ct-999' was not found." }` |
+| `409` | Conflict | Duplicate email registered to another contact | `{ "status": 409, "error": "Conflict", "message": "A contact with email 'somchai.p@bih.co.th' already exists." }` |
+| `409` | Conflict | Duplicate name under the same company | `{ "status": 409, "error": "Conflict", "message": "A contact named 'Dr. Somchai Prasert' already exists under 'Bangkok International Hospital'." }` |
+
+---
+
+### 5.16 Contact Module Open Questions for Backend Alignment
+
+The following architectural and domain design points remain open questions for backend and stakeholder confirmation:
+
+1. **Contact Status Enum is a Placeholder**:
+   - The status is currently modeled in frontend types as `['ACTIVE', 'INACTIVE']`.
+   - In the database ER diagram, Contact Status is marked as **TBD**.
+   - *Question for Backend*: What is the finalized enum definition? Will it include pipeline or qualification stages (e.g. `LEAD`, `PROSPECT`, `ENGAGED`, `DORMANT`, `CHURNED`), or remain a simple boolean-like active/inactive flag?
+
+2. **Contact Visibility Scope**:
+   - Currently, users with role `MEMBER` have read visibility across all team contacts, but write permissions (edit, delete, close) are strictly limited to contacts they own (`ownerId === currentUser.id`) or where their manager oversees the owner.
+   - *Question for Backend*: Should `MEMBER` role users have broad organization-wide visibility into all contacts, or should contact queries be strictly filtered on the server to only return contacts assigned to the current user (or contacts belonging to accounts owned by the user)?
+
+3. **Duplicate Rule Constraints**:
+   - The frontend and import validation engine currently enforces a compound duplicate rule:
+     - Rule A: Same email address across any contact (`email === existing.email`).
+     - Rule B: Same contact name within the same associated company (`companyId === existing.companyId && name.toLowerCase() === existing.name.toLowerCase()`).
+   - *Question for Backend*: Will the database schema enforce a unique index on `email` (excluding nulls) AND a composite unique constraint on `(company_id, LOWER(name))`? Or should duplicate name within a company generate a warning rather than a blocking HTTP 409 Conflict error?
+
+4. **Follow-Up Ownership & Delegation**:
+   - Follow-up tasks currently have their own `ownerId` separate from the parent contact's `ownerId`.
+   - In the current frontend implementation, `ADMIN` and `SUPER_ADMIN` users can assign follow-up tasks to any active user, while `MEMBER` users can only assign follow-up tasks to themselves.
+   - *Question for Backend*: Is peer-to-peer delegation supported where a Member can assign a task to a colleague, or should task ownership strictly follow the parent contact's owner?
+
+
 

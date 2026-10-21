@@ -45,9 +45,33 @@ frontend/
 │   │   │   │   └── AccountTable.tsx         # Responsive accounts list table
 │   │   │   └── pages/
 │   │   │       └── AccountListPage.tsx      # Accounts list with template, import, and split export menu
+│   │   ├── contacts/                # Contacts domain module (with Follow-Ups)
+│   │   │   ├── components/
+│   │   │   │   ├── ContactExportMenu.tsx    # Excel & CSV export split menu
+│   │   │   │   ├── ContactFiltersBar.tsx   # Multi-field filter toolbar (company, tier, relationship, schedule)
+│   │   │   │   ├── ContactFollowUpsTab.tsx  # Follow-up tasks tab (pending & completed)
+│   │   │   │   ├── ContactForm.tsx          # 7-section contact form with company lock
+│   │   │   │   ├── ContactImportDialog.tsx  # 3-step spreadsheet import wizard
+│   │   │   │   ├── ContactOverviewCard.tsx  # Strategic angle, targeting, and LinkedIn overview
+│   │   │   │   ├── ContactTable.tsx         # Responsive contact table with sorting & close action
+│   │   │   │   ├── FollowUpModalDialog.tsx  # Follow-up schedule dialog with period auto-calc
+│   │   │   │   ├── MarkFollowUpDoneDialog.tsx # Completion dialog with outcome notes & next task
+│   │   │   │   └── RelationshipBadge.tsx    # HOT, WARM, COLD status badges
+│   │   │   ├── hooks/
+│   │   │   │   └── useContacts.ts           # TanStack Query hooks for contacts & follow-ups
+│   │   │   ├── pages/
+│   │   │   │   ├── ContactDetailPage.tsx    # Contact detail with Overview, Follow-ups, History
+│   │   │   │   ├── ContactFormPage.tsx      # Create and edit contact pages
+│   │   │   │   └── ContactListPage.tsx      # Contacts list with filters, table, import, export
+│   │   │   ├── schemas/
+│   │   │   │   ├── contactSchema.ts         # Zod schemas for contact creation & updates
+│   │   │   │   └── followUpSchema.ts        # Zod schemas for follow-up scheduling & completion
+│   │   │   └── utils/
+│   │   │       └── followUpHelpers.ts       # Urgency evaluator & due date auto-calculators
 │   │   ├── import-export/           # Generic spreadsheet engine (SheetJS lazy-loaded)
 │   │   │   ├── constants/
-│   │   │   │   └── accountColumns.ts        # 13 standard + 3 export column definitions & aliases
+│   │   │   │   ├── accountColumns.ts        # 13 standard + 3 export column definitions & aliases
+│   │   │   │   └── contactColumns.ts        # 18 standard Contact column definitions & aliases
 │   │   │   ├── utils/
 │   │   │   │   ├── downloadHelper.ts        # Safe Blob & ArrayBuffer download triggers
 │   │   │   │   ├── exportHelper.ts          # CSV formula-injection defense & XLSX string type generator
@@ -106,11 +130,25 @@ All endpoints communicate using JSON payloads over HTTP with standard status cod
 | `PUT` | `/api/users/{id}` | Full update of user (name, code, username, email, role, managerId, status) | `SUPER_ADMIN`, `ADMIN` | `UpdateUserDTO` | `User` | `200`, `400`, `403`, `404`, `409` |
 | `PATCH` | `/api/users/{id}/status` | Quick Activate / Deactivate status toggle action | `SUPER_ADMIN`, `ADMIN` | `UpdateUserStatusDTO` | `User` | `200`, `400`, `403`, `404`, `409` |
 | `POST` | `/api/users/{id}/reset-password` | Admin resets password for specified user | `SUPER_ADMIN`, `ADMIN` | `ResetPasswordDTO` | Empty (`204`) | `204`, `400`, `403`, `404` |
+| `GET` | `/api/contacts` | Paginated search, company/tier/relationship/owner/schedule filtering, and sorting | Authenticated (`*`) | — | `PaginatedContactsResponse` | `200`, `400` |
+| `GET` | `/api/contacts/{id}` | Detailed contact profile with aggregated follow-ups | Authenticated (`*`) | — | `ContactDetail` | `200`, `404` |
+| `POST` | `/api/contacts` | Create contact profile linked to parent Account | `contact.create` | `CreateContactDTO` | `Contact` | `201`, `400`, `409` |
+| `PUT` | `/api/contacts/{id}` | Update contact coordinates, persona, angles, and ownership | `contact.edit` | `UpdateContactDTO` | `Contact` | `200`, `400`, `403`, `404`, `409` |
+| `PATCH` | `/api/contacts/{id}/close` | Toggle contact closed engagement status | `contact.close` | `{ isClosed: boolean }` | `Contact` | `200`, `403`, `404` |
+| `DELETE` | `/api/contacts/{id}` | Delete contact and associated follow-up tasks | `contact.delete` | — | Empty (`204`) | `204`, `403`, `404` |
+| `GET` | `/api/contacts/{id}/follow-ups` | List scheduled & completed follow-ups for contact | Authenticated (`*`) | — | `FollowUp[]` | `200`, `404` |
+| `POST` | `/api/contacts/{id}/follow-ups` | Schedule new follow-up and auto-recalculate due date | `followup.manage` | `CreateFollowUpDTO` | `FollowUp` | `201`, `400`, `404` |
+| `PUT` | `/api/contacts/{id}/follow-ups/{fId}` | Update follow-up task details | `followup.manage` | `UpdateFollowUpDTO` | `FollowUp` | `200`, `400`, `404` |
+| `PATCH` | `/api/contacts/{id}/follow-ups/{fId}/done` | Complete follow-up, record outcome notes, schedule next | `followup.manage` | `MarkFollowUpDoneDTO` | `FollowUp` | `200`, `400`, `404` |
+| `DELETE` | `/api/contacts/{id}/follow-ups/{fId}` | Delete follow-up task | `followup.manage` | — | Empty (`204`) | `204`, `404` |
+| `POST` | `/api/contacts/import` | Validate & commit spreadsheet rows (SKIP or ALLOW dups) | `contact.import` | `ContactImportRequest` | `ContactImportResponse` | `200`, `400` |
+| `GET` | `/api/contacts/export` | Export contacts to Excel (.xlsx) or CSV (.csv) | `contact.export` | — | Binary (`.xlsx`/`.csv`) | `200` |
 
 ### Key Business Conflict Rules (HTTP 409 Conflict)
 1. **Self-Deactivation Protection**: An administrator cannot deactivate their own active user account via `PUT /api/users/{id}` or `PATCH /api/users/{id}/status`.
 2. **Super Admin Protection**: Exactly one `SUPER_ADMIN` account exists (`usr-super`, Alex Mercer). It cannot be deactivated, deleted, or demoted.
 3. **Unique Email, Username, & Code**: Re-registration of an already taken email, username, or initials code returns an HTTP `409 Conflict` modal dialog with friendly guidance.
+4. **Duplicate Contact Prevention**: Attempting to register an email address already assigned to an existing contact or creating a contact with identical name under the same company returns an HTTP `409 Conflict` error.
 
 ---
 
@@ -129,6 +167,15 @@ Permissions are derived **strictly** from the assigned `UserRole`. Custom per-us
 | `account.import` | Upload spreadsheets, run validation, and batch import accounts | ✅ | ✅ | ✅ |
 | `account.export` | Export filtered account lists to Excel (.xlsx) or CSV (.csv) | ✅ | ✅ | ✅ |
 | `contacts.view` | View contacts and relationship intelligence | ✅ | ✅ | ✅ |
+| `contact.create` | Create new contact profile | ✅ | ✅ | ✅ |
+| `contact.edit` | Update contact profile and coordinates | ✅ | ✅ | ✅ (Own) |
+| `contact.close` | Toggle contact closed engagement status | ✅ | ✅ | ✅ (Own) |
+| `contact.delete` | Delete contact record and associated tasks | ✅ | ✅ | ✅ (Own) |
+| `contact.reassignOwner` | Reassign contact owner to another team member | ✅ | ✅ | ❌ |
+| `contact.template` | Download 18-column Excel import template | ✅ | ✅ | ✅ (Self-Owner) |
+| `contact.import` | Upload and batch import contact spreadsheets | ✅ | ✅ | ✅ |
+| `contact.export` | Export contacts to Excel (.xlsx) or CSV (.csv) | ✅ | ✅ | ✅ |
+| `followup.manage` | Schedule, edit, complete, and delete follow-up tasks | ✅ | ✅ | ✅ (Own Contact) |
 | `lookup.manage` | Add or modify business lines, categories, sub-categories, and services | ✅ | ✅ | ❌ |
 | `user.manage` | Access user list, create users, edit profiles, toggle status, reset passwords | ✅ (All) | ✅ (Own Members) | ❌ |
 
@@ -253,4 +300,69 @@ The Accounts module provides an enterprise spreadsheet pipeline supporting bulk 
 
 14. **Granular Row-Level Ownership (RLS)**:
     - *Question*: For `MEMBER` users, should edit permissions apply to all accounts or strictly to accounts where `ownerId == currentUserId`?
+
+---
+
+### 5.3 Contacts & Follow-Ups Module Questions (New)
+
+15. **Contact Duplicate Evaluation Scope**:
+    - *Question*: Should contact name uniqueness be enforced globally across the CRM, or scoped strictly to `(company_id, LOWER(name))`?
+    - *Resolution in Frontend*: Scoped to `(company_id, LOWER(name))` because different accounts (e.g. two separate healthcare systems) can legitimately employ individuals who happen to share the same name. Email uniqueness remains globally unique across all contacts.
+
+16. **Closed Contact Engagement Retention & Lifecycle**:
+    - *Question*: What is the business impact when a contact is flagged as `isClosed=true`?
+    - *Resolution in Frontend*: Closing a contact does NOT delete any historical data, notes, or past follow-up tasks. It flags the contact as "Closed Engagement" so outreach teams know not to schedule active new business calls, but all past interaction records remain intact. Reopening is available at any time.
+
+17. **Follow-Up Date Propagation & Priority**:
+    - *Question*: How does a newly scheduled follow-up affect the parent Contact and Account?
+    - *Resolution in Frontend*: The earliest pending (non-completed) follow-up date automatically propagates to both `contact.nextFollowUpDate` and `account.nextFollowUpDate`. When a follow-up is marked done, the calculator immediately re-evaluates all remaining pending tasks to locate the next earliest due date.
+
+18. **Auto-Calculating Follow-up Due Dates from Period**:
+    - *Question*: When scheduling a follow-up, how should `dueDate` interact with `period` (cadence days) and `lastContactedDate`?
+    - *Resolution in Frontend*: Changing `period` (e.g., 7, 14, 30 days) automatically computes `dueDate = lastContactedDate + period days`. Users can also freely pick any custom `dueDate` in the calendar picker. If a selected date is in the past, an amber warning banner is presented to alert the user without blocking submission.
+
+19. **Contact Spreadsheet 18-Column Import & Foreign Key Resolution**:
+    - *Question*: How are company and owner values in uploaded spreadsheets resolved?
+    - *Resolution in Frontend*: The spreadsheet engine normalizes the `Company` column against all existing active accounts (case-insensitive string matching). If the company name is not found, the row fails validation with a clear message: `"Company '[Name]' not found in registered accounts"`. The `Owner Username` is similarly matched against active users; if omitted or blank, it defaults automatically to the currently importing user.
+
+---
+
+## 6. Contacts & Follow-Ups Module Architecture & Specifications
+
+### 6.1 Relational Integrity & Schema
+- **Mandatory Parent Account**: Every contact is linked to a valid `companyId` (foreign key to `accounts.id`). The Contacts list table displays `companyName` with a direct link to the account detail page.
+- **Account Detail Integration**: The `AccountContactsTab` within `/accounts/:id` displays all linked contacts, their executive tiers, relationship statuses, next steps, and follow-up deadlines, alongside a direct "+ New Contact" button pre-populating `?companyId={accountId}`.
+
+### 6.2 Follow-Up Workflow & Urgency Engine
+- **Three Urgency Levels**:
+  - `OVERDUE` (due date < today): Red highlight badge with warning icon.
+  - `DUE_TODAY` (due date == today): Amber highlight badge.
+  - `UPCOMING` (due date > today): Neutral/cool theme badge.
+- **Marking Follow-Up as Completed**:
+  - Prompts for completion date and mandatory `resultNote` documenting meeting notes or conversation outcomes.
+  - Offers a seamless inline option to schedule the next follow-up action with calculated due date.
+
+### 6.3 18-Column Excel Import & Export Pipeline
+- Pinned to the official SheetJS CDN distribution via `.npmrc`.
+- Provides an official 18-column `.xlsx` template download with pre-filled demonstration rows, instructions, and lookup reference lists.
+- Client-side pre-validation parses up to 500 rows, checking email formats, HTTPS LinkedIn URLs, required fields, and duplicate records with a toggleable duplicate policy (`SKIP` or `ALLOW`).
+
+### 6.4 Contact Module Open Questions for Backend Alignment
+
+The following architectural decisions are documented as open questions for final backend schema finalization:
+
+1. **Contact Status Enum is a Placeholder**:
+   - Status is currently defined as `['ACTIVE', 'INACTIVE']` and marked as TBD in the ER diagram.
+   - *Confirmation needed*: What is the complete lifecycle enum definition (e.g. `LEAD`, `PROSPECT`, `ENGAGED`, `DORMANT`, `CHURNED`), or will it remain a simple active/inactive flag?
+2. **Contact Visibility Scope**:
+   - Currently, `MEMBER` users can view all contacts across accounts, but may only edit/close contacts they own.
+   - *Confirmation needed*: Should Member visibility remain team-wide (read-all), or should contact list queries be strictly restricted to assigned contacts/accounts owned by the user?
+3. **Duplicate Rule Constraints**:
+   - The frontend enforces: (a) unique email address globally, OR (b) unique name within the same company (`companyId` + `name`).
+   - *Confirmation needed*: Will the database enforce both as hard constraints (HTTP 409 Conflict), or should duplicate name within a company generate an informational warning?
+4. **Follow-Up Ownership & Delegation**:
+   - Follow-up tasks have their own `ownerId` separate from the contact's `ownerId`. Admins can assign any active user; Members can only assign themselves.
+   - *Confirmation needed*: Is peer-to-peer delegation permitted where a Member can assign tasks to other colleagues, or should follow-up ownership strictly follow the contact owner?
+
+
 
