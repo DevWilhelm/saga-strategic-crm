@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@import "./styles/theme.css";
+
+@theme {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-selected: var(--sidebar-selected);
+
+  --color-topbar-bg: var(--topbar-bg);
+  --color-border: var(--border);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+
+  --color-table-header-bg: var(--table-header-bg);
+  --color-table-header-text: var(--table-header-text);
+
+  --color-btn-primary: var(--btn-primary);
+  --color-btn-primary-hover: var(--btn-primary-hover);
+  --color-btn-primary-text: var(--btn-primary-text);
+
+  --color-btn-secondary-bg: var(--btn-secondary-bg);
+  --color-btn-secondary-border: var(--btn-secondary-border);
+  --color-btn-secondary-text: var(--btn-secondary-text);
+
+  --color-link: var(--link);
+
+  --color-tag-bg: var(--tag-bg);
+  --color-tag-text: var(--tag-text);
+  --color-tag-tier1-bg: var(--tag-tier1-bg);
+  --color-tag-tier1-text: var(--tag-tier1-text);
+
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+
+  --color-status-overdue-text: var(--status-overdue-text);
+  --color-status-overdue-bg: var(--status-overdue-bg);
+  --color-status-warning-text: var(--status-warning-text);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+
+  --color-status-info-text: var(--status-info-text);
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-success-text: var(--status-success-text);
+  --color-status-success-bg: var(--status-success-bg);
+
+  --color-relationship-hot-text: var(--relationship-hot-text);
+  --color-relationship-hot-bg: var(--relationship-hot-bg);
+  --color-relationship-warm-text: var(--relationship-warm-text);
+  --color-relationship-warm-bg: var(--relationship-warm-bg);
+  --color-relationship-cold-text: var(--relationship-cold-text);
+  --color-relationship-cold-bg: var(--relationship-cold-bg);
+
+  --color-business-healthcare: var(--business-healthcare);
+  --color-business-financial: var(--business-financial);
+  --color-business-networking: var(--business-networking);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
